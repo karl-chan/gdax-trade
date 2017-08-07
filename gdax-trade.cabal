@@ -19,14 +19,17 @@ library
   hs-source-dirs:      src
   exposed-modules:     Gdax.Trade.Auth
                      , Gdax.Trade.OrderBook
+                     , Gdax.Trade.Feed
   other-modules:       Paths_gdax_trade
   build-depends:       base >= 4.7 && < 5
                      , coinbase-exchange
                      , aeson
+                     , broadcast-chan
                      , bytestring
+                     , deepseq
+                     , hashmap
                      , http-client
                      , http-client-tls
-                     , ivar-simple
                      , pqueue
                      , stm
                      , websockets
@@ -35,11 +38,12 @@ library
 executable gdax-trade-exe
   hs-source-dirs:      app
   main-is:             Main.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -fwarn-unused-imports
   build-depends:       base
                      , gdax-trade
                      , coinbase-exchange
                      , aeson
+                     , broadcast-chan
                      , http-client
                      , text
                      , stm

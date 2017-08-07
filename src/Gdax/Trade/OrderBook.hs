@@ -1,80 +1,239 @@
+{-# LANGUAGE DeriveAnyClass     #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE RecordWildCards    #-}
+
 module Gdax.Trade.OrderBook
     ( livecastOrderBook
+    , OrderBook(..)
     ) where
 
-import           Coinbase.Exchange.MarketData
-import           Coinbase.Exchange.Private
+import           Gdax.Trade.Feed                    (Feed)
+
+import           Coinbase.Exchange.MarketData       hiding (Open, bookAsks,
+                                                     bookBids, bookSequence)
 import           Coinbase.Exchange.Socket
 import           Coinbase.Exchange.Types
-import           Coinbase.Exchange.Types.Core
-
-import           Coinbase.Exchange.Types.MarketData
-import           Coinbase.Exchange.Types.Private
+import           Coinbase.Exchange.Types.Core       hiding (Done, Open)
+import           Coinbase.Exchange.Types.MarketData hiding (Open, bookAsks,
+                                                     bookBids, bookSequence)
+import qualified Coinbase.Exchange.Types.MarketData as CB
 import           Coinbase.Exchange.Types.Socket
 
+import           BroadcastChan.Throw                (BroadcastChan, In, Out,
+                                                     newBChanListener,
+                                                     newBroadcastChan,
+                                                     readBChan, writeBChan)
+import Debug.Trace (traceShowM, traceM)
 import           Control.Concurrent                 (forkIO, threadDelay)
+import           Control.Concurrent.MVar            (MVar, putMVar, tryReadMVar)
+import           Control.Concurrent.MVar            (MVar, newEmptyMVar,
+                                                     putMVar)
 import           Control.Concurrent.STM.TChan       (TChan, newTChanIO,
-                                                     readTChan, writeTChan)
+                                                     tryReadTChan, writeTChan)
+import           Control.DeepSeq                    (NFData)
 import           Control.Exception                  (throw)
 import           Control.Monad                      (forever)
 import           Control.Monad.IO.Class             (liftIO)
+import           Control.Monad.ST                   (ST, runST)
 import           Control.Monad.STM                  (atomically)
 import           Data.Aeson                         (eitherDecode)
-import           Data.IVar.Simple                   as IVar
-import           Data.Maybe                         (fromJust, isNothing)
+import           Data.Data
+
+import           Data.HashMap                       (Map)
+import qualified Data.HashMap                       as Map
+import           Data.IORef                         (IORef, newIORef, readIORef,
+                                                     writeIORef)
+import           Data.List                          (sort)
+import           Data.Maybe                         (fromJust, isJust,
+                                                     isNothing, maybeToList)
 import qualified Data.PQueue.Prio.Min               as PQ
+import           Data.Typeable
+import           GHC.Generics
 import           Network.WebSockets                 (ClientApp, Connection,
                                                      receiveData)
 
-type OrderBook = Book OrderId
+data OrderBook = OrderBook
+    { bookSequence :: Sequence
+    , bookBids     :: OrderBookItems
+    , bookAsks     :: OrderBookItems
+    } deriving (Show, Data, Typeable, Generic, NFData)
 
-livecastOrderBook :: ExchangeConf -> ProductId -> TChan OrderBook -> IO ()
-livecastOrderBook conf productId broadcastChan = do
-    exchangeMessageChan <- newTChanIO
-    startSequenceIVar <- IVar.new :: IO (IVar Sequence)
-    forkIO $ subscribe Live [productId] $ socketApp exchangeMessageChan startSequenceIVar -- 1. Send a subscribe message for the product of interest.
-    eitherBook <- runExchange conf $ getOrderBook productId -- 3. Make a REST request for the order book snapshot from the REST feed.
-    case eitherBook of
-        Left err -> throw err
-        Right book -> do
-            notifyStartSequence (bookSequence book) startSequenceIVar
-            forever $ do
-                exchangeMessage <- atomically $ readTChan exchangeMessageChan
-                print exchangeMessage
+type OrderBookItems = Map OrderId OrderBookItem
 
-socketApp :: TChan ExchangeMessage -> IVar Sequence -> ClientApp ()
-socketApp chan ivar conn = do
-    let queue = PQ.empty :: PQ.MinPQueue Sequence ExchangeMessage
-        repeatProcess queue = do
-            handleExchangeMessage conn $ \exchangeMessage -> do
-                waitForStartSequence ivar (failureApp exchangeMessage) successApp
-          where
-            failureApp exchangeMessage = do
-                let queue' = PQ.insert (msgSequence exchangeMessage) exchangeMessage queue -- 2. Queue any messages received over the websocket stream.
-                repeatProcess queue
-            successApp startSequence = do
-                playbackQueue startSequence queue (atomically . writeTChan chan) -- 4. Playback queued messages, discarding sequence numbers before or equal to the snapshot sequence number.
-                forever $ handleExchangeMessage conn $ atomically . writeTChan chan -- 6. After playback is complete, apply real-time stream messages as they arrive.
-    repeatProcess queue
+type OrderBookItem = BookItem OrderId
 
-notifyStartSequence :: Sequence -> IVar Sequence -> IO ()
-notifyStartSequence sequence ivar = IVar.write ivar sequence
+type OrderBookRef = IORef (Maybe OrderBook)
 
-waitForStartSequence :: IVar Sequence -> IO () -> (Sequence -> IO ()) -> IO ()
-waitForStartSequence ivar failureApp successApp = do
-    maybeStartSequence <- IVar.tryRead ivar
-    if isNothing maybeStartSequence
-        then failureApp
-        else successApp $ fromJust maybeStartSequence
+type OrderBookBroadcastChan = BroadcastChan In OrderBook
 
-playbackQueue :: (Applicative f) => Sequence -> PQ.MinPQueue Sequence a -> (a -> f b) -> f (PQ.MinPQueue Sequence b)
-playbackQueue startSequence queue func = do
-    let remainingQueue = PQ.dropWhileWithKey (\k _ -> k <= startSequence) queue
-    PQ.traverseWithKey (\_ msg -> func msg) remainingQueue
+type FeedListener = BroadcastChan Out ExchangeMessage
 
-handleExchangeMessage :: Connection -> (ExchangeMessage -> IO a) -> IO a
-handleExchangeMessage conn fn = do
-    exchangeMessage <- receiveData conn
-    case eitherDecode exchangeMessage of
-        Left err              -> error err
-        Right exchangeMessage -> fn exchangeMessage
+type SyncSignal = TChan ()
+
+type PlaybackFunc a = a -> ExchangeMessage -> a
+
+type UpdateFunc = OrderBookItems -> ExchangeMessage -> OrderBookItems
+
+type TransformFunc = OrderBookItem -> OrderBookItem
+
+data UpdateOp
+    = Insert
+    | Replace
+    | Delete
+
+type ExchangeMsgQueue = PQ.MinPQueue Sequence ExchangeMessage
+
+type ExchangeMsgQueueRef = IORef ExchangeMsgQueue
+
+syncInterval = 60 * 1000 * 1000 -- sync order book every minute
+
+livecastOrderBook :: ProductId -> ExchangeConf -> Feed -> IO OrderBookBroadcastChan
+livecastOrderBook productId conf feed = do
+    orderBookBroadcastChan <- newBroadcastChan
+    feedListener <- newBChanListener feed
+
+    -- Wait until feed is really available
+    readBChan feedListener
+
+    -- State variables
+    queueRef <- newIORef PQ.empty :: IO (IORef ExchangeMsgQueue)
+    bookRef <- newIORef Nothing :: IO (IORef (Maybe OrderBook))
+    syncSignal <- newTChanIO :: IO SyncSignal
+    -- Update logic
+    forkIO $ periodicallySyncOrderBook syncSignal syncInterval
+    forkIO $ processOrderBook bookRef queueRef productId conf feedListener syncSignal orderBookBroadcastChan
+    return orderBookBroadcastChan
+
+periodicallySyncOrderBook :: SyncSignal -> Int -> IO ()
+periodicallySyncOrderBook signal period = do
+    forever $ do
+        atomically $ writeTChan signal ()
+        threadDelay period
+    return ()
+
+processOrderBook ::
+       OrderBookRef
+    -> ExchangeMsgQueueRef
+    -> ProductId
+    -> ExchangeConf
+    -> FeedListener
+    -> SyncSignal
+    -> OrderBookBroadcastChan
+    -> IO ()
+processOrderBook bookRef queueRef productId conf feedListener signal broadcastChan = do
+    forever $ do
+        res <- atomically $ tryReadTChan signal
+        bookUpdated <-
+            case res of
+                Nothing -> tryIncrementOrderBook bookRef queueRef feedListener
+                Just _ -> syncOrderBook bookRef queueRef productId conf feedListener
+        if bookUpdated
+            then readIORef bookRef >>= (writeBChan broadcastChan) . fromJust
+            else return ()
+    return ()
+
+tryIncrementOrderBook :: OrderBookRef -> ExchangeMsgQueueRef -> FeedListener -> IO Bool
+tryIncrementOrderBook bookRef queueRef feedListener = do
+    exchangeMsg <- readBChan feedListener
+    maybeBook <- readIORef bookRef
+    queue <- readIORef queueRef
+    let book = fromJust maybeBook
+        shouldQueue = isNothing maybeBook || (not $ isSequential book queue exchangeMsg)
+    if shouldQueue
+        then do
+            let newQueue = enqueue queue exchangeMsg
+            writeIORef queueRef newQueue
+            return False
+        else do
+            let book' = dequeue queue updateOrderBook book
+                newBook = updateOrderBook book' exchangeMsg
+            writeIORef queueRef PQ.empty
+            writeIORef bookRef $ Just newBook
+            return True
+
+syncOrderBook :: OrderBookRef -> ExchangeMsgQueueRef -> ProductId -> ExchangeConf -> FeedListener -> IO Bool
+syncOrderBook bookRef queueRef productId conf feed = do
+    restSignal <- newEmptyMVar
+    queue <- readIORef queueRef
+    forkIO $ do restOrderBook productId conf >>= putMVar restSignal
+    let loop q = do
+            exchangeMsg <- readBChan feed
+            restResult <- tryReadMVar restSignal
+            case restResult of
+                Nothing -> do
+                    traceM $ "rest result is nothing " ++ (show $ msgSequence exchangeMsg)
+                    let newQueue = enqueue q exchangeMsg
+                    loop newQueue
+                Just restBook -> do
+                    traceM $ "rest book " ++ (show $ bookSequence restBook)
+                    let outdated sequence _ = sequence <= bookSequence restBook
+                        playbackQueue = PQ.dropWhileWithKey outdated q
+                        book' = dequeue playbackQueue updateOrderBook restBook
+                        newBook = updateOrderBook book' exchangeMsg
+                    traceM $ "new book " ++ (show $ bookSequence newBook)
+                    writeIORef queueRef PQ.empty
+                    writeIORef bookRef $ Just newBook
+                    return True
+    loop queue
+
+enqueue :: ExchangeMsgQueue -> ExchangeMessage -> ExchangeMsgQueue
+enqueue queue exchangeMessage = PQ.insert (msgSequence exchangeMessage) exchangeMessage queue
+
+dequeue :: ExchangeMsgQueue -> PlaybackFunc OrderBook -> OrderBook -> OrderBook
+dequeue queue playbackFunc book = foldl playbackFunc book queue
+
+restOrderBook :: ProductId -> ExchangeConf -> IO OrderBook
+restOrderBook productId conf = do
+    res <- runExchange conf $ getOrderBook productId
+    case res of
+        Left err      -> throw err
+        Right rawBook -> return $ fromRawOrderBook rawBook
+
+fromRawOrderBook :: Book OrderId -> OrderBook
+fromRawOrderBook Book {..} =
+    OrderBook
+    {bookSequence = bookSequence, bookBids = fromRawOrderBookItems bookBids, bookAsks = fromRawOrderBookItems bookAsks}
+  where
+    fromRawOrderBookItems rawBookItems = Map.fromList $ map toPair rawBookItems
+    toPair (BookItem price size orderId) = (orderId, BookItem price size orderId)
+
+updateOrderBook :: OrderBook -> ExchangeMessage -> OrderBook
+updateOrderBook book exchangeMessage =
+    let book' = book {bookSequence = msgSequence exchangeMessage}
+        func =
+            case exchangeMessage of
+                Open {..}        -> openOrder
+                Match {..}       -> matchOrder
+                Done {..}        -> doneOrder
+                ChangeLimit {..} -> changeOrder
+                _                -> const
+    in case msgSide exchangeMessage of
+           Sell -> book' {bookAsks = func (bookAsks book') exchangeMessage}
+           Buy  -> book' {bookBids = func (bookBids book') exchangeMessage}
+
+openOrder :: UpdateFunc
+openOrder bookItems Open {..} =
+    let newOrder = BookItem msgPrice msgRemainingSize msgOrderId
+    in Map.insert msgOrderId newOrder bookItems
+
+matchOrder :: UpdateFunc
+matchOrder bookItems Match {..} =
+    let matchFunc (BookItem price size orderId) = BookItem price (size - msgSize) orderId
+    in transformOrder bookItems msgMakerOrderId matchFunc
+
+changeOrder :: UpdateFunc
+changeOrder bookItems ChangeLimit {..} =
+    let changeFunc (BookItem price size orderId) = BookItem (maybe price id msgMaybePrice) msgNewSize orderId
+    in transformOrder bookItems msgOrderId changeFunc
+
+doneOrder :: UpdateFunc
+doneOrder bookItems Done {..} = Map.delete msgOrderId bookItems
+
+transformOrder :: OrderBookItems -> OrderId -> TransformFunc -> OrderBookItems
+transformOrder bookItems orderId transformFunc = Map.adjust transformFunc orderId bookItems
+
+isSequential :: OrderBook -> ExchangeMsgQueue -> ExchangeMessage -> Bool
+isSequential prevBook queue exchangeMessage =
+    let sequenceNums = (bookSequence prevBook) : (msgSequence exchangeMessage) : PQ.keysU queue
+    in sort sequenceNums == [minimum sequenceNums .. maximum sequenceNums]

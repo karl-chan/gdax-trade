@@ -3,22 +3,20 @@
 module Main where
 
 import           Gdax.Trade.Auth
+import           Gdax.Trade.Feed
 import           Gdax.Trade.OrderBook
 
+import           BroadcastChan.Throw                (newBChanListener,
+                                                     readBChan)
 import           Coinbase.Exchange.Types
 import           Coinbase.Exchange.Types.Core
 import           Coinbase.Exchange.Types.Socket
-import           Control.Concurrent             (forkIO)
-import           Control.Concurrent.STM.TChan   (newBroadcastTChanIO)
-import           Control.Monad                  (forever, liftM)
-import           Data.Aeson                     (eitherDecode)
-import           Data.Text                      (Text)
-import qualified Data.Text.IO                   as T
-import           Network.WebSockets             (ClientApp, Connection,
-                                                 receiveData, sendClose,
-                                                 sendTextData)
-
-import Data.Either
+import           Control.Concurrent                 (forkIO)
+import           Control.Monad                      (forM_, forever, liftM)
+import           Data.Text                          (Text)
+import           Network.WebSockets                 (ClientApp, Connection,
+                                                     receiveData, sendClose,
+                                                     sendTextData)
 
 currencyPair :: ProductId
 currencyPair = "ETH-EUR"
@@ -29,5 +27,8 @@ runMode = Live
 main :: IO ()
 main = do
     conf <- getConf runMode
-    orderBookBroadcastChan <- newBroadcastTChanIO
-    livecastOrderBook conf currencyPair orderBookBroadcastChan
+    feed <- newFeed currencyPair
+    orderBookListener <- newBChanListener =<< livecastOrderBook currencyPair conf feed
+    forever $ do
+        book <- readBChan orderBookListener
+        print $ bookSequence book
