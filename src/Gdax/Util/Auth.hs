@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric  #-}
 
-module Gdax.Trade.Auth
+module Gdax.Util.Auth
     ( getConf
     ) where
 

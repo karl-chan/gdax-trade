@@ -17,9 +17,11 @@ data-files:          gdaxCredentials.json
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Gdax.Trade.Auth
-                     , Gdax.Trade.OrderBook
-                     , Gdax.Trade.Feed
+  exposed-modules:     Gdax.Data.OrderBook
+                     , Gdax.Data.OrderBook.Types
+                     , Gdax.Data.OrderBook.Internal
+                     , Gdax.Util.Auth
+                     , Gdax.Util.Feed
   other-modules:       Paths_gdax_trade
   build-depends:       base >= 4.7 && < 5
                      , coinbase-exchange

@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import           Test.Tasty
+import qualified Gdax.Data.OrderBook.Test       as OrderBook
+import           Gdax.Util.Auth
+import           Gdax.Util.Feed
 
 import           Coinbase.Exchange.Types
 import           Coinbase.Exchange.Types.Core
 import           Coinbase.Exchange.Types.Socket
 
-import Gdax.Trade.Auth (getConf)
-import Gdax.Trade.Feed (Feed, newFeed)
-import qualified Gdax.Trade.OrderBook.Test      as OrderBook
+import           Test.Tasty
 
 testRunMode :: ApiType
 testRunMode = Live

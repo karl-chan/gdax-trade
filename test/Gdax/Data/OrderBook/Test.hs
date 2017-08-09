@@ -1,28 +1,20 @@
-module Gdax.Trade.OrderBook.Test where
+module Gdax.Data.OrderBook.Test where
 
-import           Gdax.Trade.Feed
-import           Gdax.Trade.OrderBook
+import           Gdax.Util.Feed
+import           Gdax.Data.OrderBook.Internal
+import           Gdax.Data.OrderBook.Types
 
-import           Coinbase.Exchange.MarketData       hiding (Open, bookAsks,
-                                                     bookBids, bookSequence)
-import           Coinbase.Exchange.Socket
-import           Coinbase.Exchange.Types
-import           Coinbase.Exchange.Types.Core       hiding (Done, Open)
-import           Coinbase.Exchange.Types.MarketData hiding (Open, bookAsks,
-                                                     bookBids, bookSequence)
-import qualified Coinbase.Exchange.Types.MarketData as CB
-import           Coinbase.Exchange.Types.Socket
-import           Control.Concurrent                 (forkIO)
+import Coinbase.Exchange.Types (ExchangeConf)
+import Coinbase.Exchange.Types.Core (ProductId, Sequence)
 
-import           Control.Concurrent.MVar            (MVar, newEmptyMVar,
-                                                     putMVar, readMVar,
-                                                     tryReadMVar)
-import qualified Data.HashMap                       as Map
+import           Control.Concurrent            (forkIO)
+
+import           Control.Concurrent.MVar       (MVar, newEmptyMVar, putMVar,
+                                                readMVar, tryReadMVar)
+import qualified Data.HashMap                  as Map
 import           Data.List
-import           Data.Maybe                         (Maybe, fromJust,
-                                                     listToMaybe)
-import qualified Data.PQueue.Prio.Min               as PQ
-import           Debug.Trace
+import           Data.Maybe                    (Maybe, fromJust, listToMaybe)
+import qualified Data.PQueue.Prio.Min          as PQ
 import           Test.Tasty
 import           Test.Tasty.HUnit
 

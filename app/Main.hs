@@ -2,18 +2,15 @@
 
 module Main where
 
-import           Gdax.Trade.Auth
-import           Gdax.Trade.Feed
-import           Gdax.Trade.OrderBook
+import           Gdax.Data.OrderBook
+import           Gdax.Data.OrderBook.Types
+import           Gdax.Util.Auth
+import           Gdax.Util.Feed
 
-import           BroadcastChan.Throw                (newBChanListener,
-                                                     readBChan)
+import           BroadcastChan.Throw          (newBChanListener, readBChan)
 import           Coinbase.Exchange.Types
 import           Coinbase.Exchange.Types.Core
-import           Control.Monad                      (forever)
-import qualified Data.HashMap as Map
-import Data.List (minimumBy, maximumBy)
-import Data.Ord (comparing)
+import           Control.Monad                (forever)
 
 currencyPair :: ProductId
 currencyPair = "ETH-EUR"
@@ -28,4 +25,4 @@ main = do
     orderBookListener <- newBChanListener =<< livecastOrderBook currencyPair conf feed
     forever $ do
         book <- readBChan orderBookListener
-        putStrLn $ (show $ bookSequence book) ++ (show $ minimumBy (comparing price) $ Map.elems $ bookAsks book)
+        putStrLn $ (show $ bookSequence book) ++ (show $ ask book) ++ (show $ bid book)

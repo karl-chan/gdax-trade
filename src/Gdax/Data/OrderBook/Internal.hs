@@ -1,21 +1,24 @@
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE RecordWildCards #-}
 
-module Gdax.Trade.OrderBook where
+module Gdax.Data.OrderBook.Internal where
 
-import           Gdax.Trade.Feed
+import           Gdax.Data.OrderBook.Types
+import           Gdax.Util.Feed
 
-import           Coinbase.Exchange.MarketData       hiding (Open, bookAsks,
-                                                     bookBids, bookSequence)
-import           Coinbase.Exchange.Socket
-import           Coinbase.Exchange.Types
-import           Coinbase.Exchange.Types.Core       hiding (Done, Open)
-import           Coinbase.Exchange.Types.MarketData hiding (Open, bookAsks,
-                                                     bookBids, bookSequence)
+import           Coinbase.Exchange.MarketData       (getOrderBook)
+import           Coinbase.Exchange.Types            (ExchangeConf, runExchange)
+import           Coinbase.Exchange.Types.Core       (OrderId, ProductId,
+                                                     Sequence, Side (Buy, Sell))
+import           Coinbase.Exchange.Types.MarketData (Book (Book),
+                                                     BookItem (BookItem))
 import qualified Coinbase.Exchange.Types.MarketData as CB
-import           Coinbase.Exchange.Types.Socket
+import           Coinbase.Exchange.Types.Socket     (ExchangeMessage (ChangeLimit, Done, Match, Open),
+                                                     msgMakerOrderId,
+                                                     msgMaybePrice, msgNewSize,
+                                                     msgOrderId, msgPrice,
+                                                     msgRemainingSize,
+                                                     msgSequence, msgSide,
+                                                     msgSize)
 
 import           BroadcastChan.Throw                (BroadcastChan, In, Out,
                                                      newBChanListener,
@@ -26,40 +29,18 @@ import           Control.Concurrent.MVar            (MVar, newEmptyMVar,
                                                      putMVar, tryReadMVar)
 import           Control.Concurrent.STM.TChan       (TChan, newTChanIO,
                                                      tryReadTChan, writeTChan)
-import           Control.DeepSeq                    (NFData)
 import           Control.Exception                  (throw)
 import           Control.Monad                      (forever, void, when)
 import           Control.Monad.STM                  (atomically)
 import           Data.Aeson                         (eitherDecode)
-import           Data.Data
 import           Data.HashMap                       (Map)
 import qualified Data.HashMap                       as Map
 import           Data.List                          (sort)
 import           Data.Maybe                         (fromJust, isJust,
                                                      isNothing, maybeToList)
 import qualified Data.PQueue.Prio.Min               as PQ
-import           Data.Typeable
-import           GHC.Generics
 import           Network.WebSockets                 (ClientApp, Connection,
                                                      receiveData)
-
-data OrderBook = OrderBook
-    { bookSequence :: Sequence
-    , bookBids     :: OrderBookItems
-    , bookAsks     :: OrderBookItems
-    } deriving (Eq, Show, Data, Typeable, Generic, NFData)
-
-data OrderBookItem = OrderBookItem
-    { price   :: Price
-    , size    :: Size
-    , orderId :: OrderId
-    } deriving (Eq, Show, Data, Typeable, Generic, NFData)
-
-type OrderBookItems = Map OrderId OrderBookItem
-
-type OrderBookBroadcastChan = BroadcastChan In OrderBook
-
-type SyncSignal = TChan ()
 
 type PlaybackFunc = OrderBook -> ExchangeMessage -> OrderBook
 
@@ -71,13 +52,6 @@ type ExchangeMsgQueue = PQ.MinPQueue Sequence ExchangeMessage
 
 -- | Sync order book if queue grows too long, probably due to dropped message
 queueThreshold = 20
-
-livecastOrderBook :: ProductId -> ExchangeConf -> Feed -> IO OrderBookBroadcastChan
-livecastOrderBook productId conf feed = do
-    orderBookBroadcastChan <- newBroadcastChan
-    feedListener <- waitUntilFeed =<< newFeedListener feed
-    forkIO $ processOrderBook productId conf feedListener orderBookBroadcastChan
-    return orderBookBroadcastChan
 
 processOrderBook :: ProductId -> ExchangeConf -> FeedListener -> OrderBookBroadcastChan -> IO ()
 processOrderBook productId conf feedListener broadcastChan = do
@@ -142,8 +116,7 @@ restOrderBook productId conf = do
 
 fromRawOrderBook :: Book OrderId -> OrderBook
 fromRawOrderBook Book {..} =
-    OrderBook
-    {bookSequence = bookSequence, bookBids = fromRawBookItems bookBids, bookAsks = fromRawBookItems bookAsks}
+    OrderBook {bookSequence = bookSequence, bookBids = fromRawBookItems bookBids, bookAsks = fromRawBookItems bookAsks}
   where
     fromRawBookItems rawBookItems = Map.fromList $ map toPair rawBookItems
     toPair (BookItem price size orderId) = (orderId, OrderBookItem price size orderId)

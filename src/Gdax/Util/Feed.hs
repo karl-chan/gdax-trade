@@ -1,4 +1,4 @@
-module Gdax.Trade.Feed where
+module Gdax.Util.Feed where
 
 import           BroadcastChan.Throw            (BroadcastChan, In, Out,
                                                  newBChanListener,
