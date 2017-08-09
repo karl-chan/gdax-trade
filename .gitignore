@@ -1,4 +1,5 @@
 .stack-work/
 .idea/
 .ideaHaskellLib/
+out/
 *.iml
