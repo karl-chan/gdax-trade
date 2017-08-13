@@ -3,12 +3,14 @@
 module Gdax.Data.OrderBook.Internal where
 
 import           Gdax.Data.OrderBook.Types
+import           Gdax.Data.Product
+import           Gdax.Util.Exchange
 import           Gdax.Util.Feed
 
 import           Coinbase.Exchange.MarketData       (getOrderBook)
 import           Coinbase.Exchange.Types            (ExchangeConf, runExchange)
 import           Coinbase.Exchange.Types.Core       (OrderId, ProductId,
-                                                     Sequence, Side (Buy, Sell))
+                                                     Side (Buy, Sell))
 import           Coinbase.Exchange.Types.MarketData (Book (Book),
                                                      BookItem (BookItem))
 import qualified Coinbase.Exchange.Types.MarketData as CB
@@ -18,146 +20,120 @@ import           Coinbase.Exchange.Types.Socket     (ExchangeMessage (ChangeLimi
                                                      msgOrderId, msgPrice,
                                                      msgRemainingSize,
                                                      msgSequence, msgSide,
-                                                     msgSize)
+                                                     msgSize, msgTime)
 
-import           BroadcastChan.Throw                (BroadcastChan, In, Out,
-                                                     newBChanListener,
-                                                     newBroadcastChan,
-                                                     readBChan, writeBChan)
-import           Control.Concurrent                 (forkIO, threadDelay)
+import           Control.Concurrent                 (forkIO)
 import           Control.Concurrent.MVar            (MVar, newEmptyMVar,
                                                      putMVar, tryReadMVar)
-import           Control.Concurrent.STM.TChan       (TChan, newTChanIO,
-                                                     tryReadTChan, writeTChan)
 import           Control.Exception                  (throw)
 import           Control.Monad                      (forever, void, when)
-import           Control.Monad.STM                  (atomically)
 import           Data.Aeson                         (eitherDecode)
 import           Data.HashMap                       (Map)
 import qualified Data.HashMap                       as Map
 import           Data.List                          (sort)
 import           Data.Maybe                         (fromJust, isJust,
-                                                     isNothing, maybeToList)
-import qualified Data.PQueue.Prio.Min               as PQ
+                                                     isNothing, maybeToList, fromMaybe)
+import           Data.Time.Clock                    (getCurrentTime)
 import           Network.WebSockets                 (ClientApp, Connection,
                                                      receiveData)
 
-type PlaybackFunc = OrderBook -> ExchangeMessage -> OrderBook
-
-type UpdateFunc = OrderBookItems -> ExchangeMessage -> OrderBookItems
-
 type TransformFunc = OrderBookItem -> OrderBookItem
 
-type ExchangeMsgQueue = PQ.MinPQueue Sequence ExchangeMessage
-
--- | Sync order book if queue grows too long, probably due to dropped message
-queueThreshold = 20
-
-processOrderBook :: ProductId -> ExchangeConf -> FeedListener -> OrderBookBroadcastChan -> IO ()
-processOrderBook productId conf feedListener broadcastChan = do
+processOrderBook :: ProductId -> ExchangeConf -> ProductFeed -> OrderBookFeed -> IO ()
+processOrderBook productId conf productFeed bookFeed = do
+    productFeedListener <- newFeedListener productFeed >>= waitUntilFeed
     let forever' maybeBook queue shouldSync = do
             (newMaybeBook, newQueue, bookUpdated) <-
                 if shouldSync
                     then do
-                        newBook <- syncOrderBook maybeBook queue productId conf feedListener
-                        return (Just newBook, PQ.empty, True)
-                    else tryIncrementOrderBook maybeBook queue feedListener
-            when bookUpdated $ writeBChan broadcastChan $ (fromJust newMaybeBook)
-            let newShouldSync = PQ.size newQueue >= queueThreshold
+                        newBook <- syncOrderBook maybeBook queue productId conf productFeedListener
+                        return (Just newBook, newExchangeMsgQueue, True)
+                    else tryIncrementOrderBook maybeBook queue productFeedListener
+            when bookUpdated $ writeFeed bookFeed $ fromJust newMaybeBook
+            let newShouldSync = queueSize newQueue >= queueThreshold
             forever' newMaybeBook newQueue newShouldSync
-    forever' Nothing PQ.empty True
+    forever' Nothing newExchangeMsgQueue True
 
 tryIncrementOrderBook ::
-       Maybe OrderBook -> ExchangeMsgQueue -> FeedListener -> IO (Maybe OrderBook, ExchangeMsgQueue, Bool)
-tryIncrementOrderBook maybeBook queue feedListener = do
-    exchangeMsg <- readBChan feedListener
-    let book = fromJust maybeBook
-        shouldQueue = maybe True (\book -> not $ isSequential book queue exchangeMsg) maybeBook
-    if shouldQueue
-        then do
-            let newQueue = enqueue queue exchangeMsg
-            return (maybeBook, newQueue, False)
-        else do
-            let book' = dequeue queue updateOrderBook book
-                newBook = updateOrderBook book' exchangeMsg
-            return (Just newBook, PQ.empty, True)
+       Maybe OrderBook -> ExchangeMsgQueue -> ProductFeedListener -> IO (Maybe OrderBook, ExchangeMsgQueue, Bool)
+tryIncrementOrderBook maybeBook queue productFeedListener = do
+    exchangeMsg <- readFeed productFeedListener
+    let newQueue = enqueue queue exchangeMsg
+        book = fromJust maybeBook
+    return $
+        if isJust maybeBook && canDequeue book newQueue
+            then (Just $ dequeue newQueue updateOrderBook book, newExchangeMsgQueue, True)
+            else (maybeBook, newQueue, False)
 
-syncOrderBook :: Maybe OrderBook -> ExchangeMsgQueue -> ProductId -> ExchangeConf -> FeedListener -> IO OrderBook
-syncOrderBook maybeBook queue productId conf feed = do
+canDequeue :: OrderBook -> ExchangeMsgQueue -> Bool
+canDequeue prevBook queue =
+    let sequences = bookSequence prevBook : queueKeysU queue
+    in sort sequences == [minimum sequences .. maximum sequences]
+
+syncOrderBook :: Maybe OrderBook -> ExchangeMsgQueue -> ProductId -> ExchangeConf -> ProductFeedListener -> IO OrderBook
+syncOrderBook maybeBook queue productId conf productFeedListener = do
     restArrivedSignal <- newEmptyMVar
-    forkIO $ do restOrderBook productId conf >>= putMVar restArrivedSignal
-    let loop q = do
-            exchangeMsg <- readBChan feed
+    forkIO $ do
+        book <- restOrderBook productId conf
+        putMVar restArrivedSignal book
+    let queueUntilSynced q = do
+            exchangeMsg <- readFeed productFeedListener
             restResult <- tryReadMVar restArrivedSignal
             case restResult of
                 Nothing -> do
                     let newQueue = enqueue q exchangeMsg
-                    loop newQueue
+                    queueUntilSynced newQueue
                 Just restBook -> do
                     let outdated sequence _ = sequence <= bookSequence restBook
-                        playbackQueue = PQ.dropWhileWithKey outdated q
-                        book' = dequeue playbackQueue updateOrderBook restBook
+                        validMsgQueue = queueDropWhileWithKey outdated q
+                        book' = dequeue validMsgQueue updateOrderBook restBook
                         newBook = updateOrderBook book' exchangeMsg
                     return newBook
-    loop queue
-
-enqueue :: ExchangeMsgQueue -> ExchangeMessage -> ExchangeMsgQueue
-enqueue queue exchangeMessage = PQ.insert (msgSequence exchangeMessage) exchangeMessage queue
-
-dequeue :: ExchangeMsgQueue -> PlaybackFunc -> OrderBook -> OrderBook
-dequeue queue playbackFunc book = foldl playbackFunc book queue
+    queueUntilSynced queue
 
 restOrderBook :: ProductId -> ExchangeConf -> IO OrderBook
 restOrderBook productId conf = do
     res <- runExchange conf $ getOrderBook productId
     case res of
         Left err      -> throw err
-        Right rawBook -> return $ fromRawOrderBook rawBook
+        Right rawBook -> fromRawOrderBook rawBook
 
-fromRawOrderBook :: Book OrderId -> OrderBook
-fromRawOrderBook Book {..} =
-    OrderBook {bookSequence = bookSequence, bookBids = fromRawBookItems bookBids, bookAsks = fromRawBookItems bookAsks}
+fromRawOrderBook :: Book OrderId -> IO OrderBook
+fromRawOrderBook Book {..} = do
+    now <- getCurrentTime
+    return
+        OrderBook
+        { bookSequence = bookSequence
+        , bookTime = now
+        , bookBids = fromRawBookItems bookBids
+        , bookAsks = fromRawBookItems bookAsks
+        }
   where
-    fromRawBookItems rawBookItems = Map.fromList $ map toPair rawBookItems
-    toPair (BookItem price size orderId) = (orderId, OrderBookItem price size orderId)
+    fromRawBookItems rawBookItems = Map.fromList $ map toKeyValue rawBookItems
+    toKeyValue (BookItem price size orderId) = (orderId, OrderBookItem price size orderId)
 
 updateOrderBook :: OrderBook -> ExchangeMessage -> OrderBook
 updateOrderBook book exchangeMessage =
-    let book' = book {bookSequence = msgSequence exchangeMessage}
-        func =
-            case exchangeMessage of
-                Open {..}        -> openOrder
-                Match {..}       -> matchOrder
-                Done {..}        -> doneOrder
-                ChangeLimit {..} -> changeOrder
-                _                -> const
+    let book' = book {bookSequence = msgSequence exchangeMessage, bookTime = msgTime exchangeMessage}
     in case msgSide exchangeMessage of
-           Sell -> book' {bookAsks = func (bookAsks book') exchangeMessage}
-           Buy  -> book' {bookBids = func (bookBids book') exchangeMessage}
+           Sell -> book' {bookAsks = updateOrder (bookAsks book') exchangeMessage}
+           Buy -> book' {bookBids = updateOrder (bookBids book') exchangeMessage}
 
-openOrder :: UpdateFunc
-openOrder bookItems Open {..} =
-    let newOrder = OrderBookItem msgPrice msgRemainingSize msgOrderId
-    in Map.insert msgOrderId newOrder bookItems
-
-matchOrder :: UpdateFunc
-matchOrder bookItems Match {..} =
-    let matchFunc bookItem@OrderBookItem {size = oldSize} = bookItem {size = oldSize - msgSize}
-    in transformOrder bookItems msgMakerOrderId matchFunc
-
-changeOrder :: UpdateFunc
-changeOrder bookItems ChangeLimit {..} =
-    let changeFunc bookItem@OrderBookItem {price = oldPrice} =
-            bookItem {price = maybe oldPrice id msgMaybePrice, size = msgNewSize}
-    in transformOrder bookItems msgOrderId changeFunc
-
-doneOrder :: UpdateFunc
-doneOrder bookItems Done {..} = Map.delete msgOrderId bookItems
+updateOrder :: OrderBookItems -> ExchangeMessage -> OrderBookItems
+updateOrder bookItems msg =
+    case msg of
+        Open {..} ->
+            let newOrder = OrderBookItem msgPrice msgRemainingSize msgOrderId
+            in Map.insert msgOrderId newOrder bookItems
+        Match {..} ->
+            let transformFunc bookItem@OrderBookItem {size = oldSize} = bookItem {size = oldSize - msgSize}
+            in transformOrder bookItems msgMakerOrderId transformFunc
+        ChangeLimit {..} ->
+            let transformFunc bookItem@OrderBookItem {price = oldPrice} =
+                    bookItem {price = fromMaybe oldPrice msgMaybePrice, size = msgNewSize}
+            in transformOrder bookItems msgOrderId transformFunc
+        Done {..} -> Map.delete msgOrderId bookItems
+        _ -> bookItems
 
 transformOrder :: OrderBookItems -> OrderId -> TransformFunc -> OrderBookItems
 transformOrder bookItems orderId transformFunc = Map.adjust transformFunc orderId bookItems
-
-isSequential :: OrderBook -> ExchangeMsgQueue -> ExchangeMessage -> Bool
-isSequential prevBook queue exchangeMessage =
-    let sequenceNums = (bookSequence prevBook) : (msgSequence exchangeMessage) : PQ.keysU queue
-    in sort sequenceNums == [minimum sequenceNums .. maximum sequenceNums]

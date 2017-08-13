@@ -1,35 +1,34 @@
 module Gdax.Data.OrderBook.Test where
 
-import           Gdax.Util.Feed
 import           Gdax.Data.OrderBook.Internal
 import           Gdax.Data.OrderBook.Types
+import           Gdax.Util.Feed
+import           Gdax.Data.Product
 
-import Coinbase.Exchange.Types (ExchangeConf)
-import Coinbase.Exchange.Types.Core (ProductId, Sequence)
+import           Coinbase.Exchange.Types      (ExchangeConf)
+import           Coinbase.Exchange.Types.Core (ProductId, Sequence)
 
-import           Control.Concurrent            (forkIO)
+import           Control.Concurrent           (forkIO)
 
-import           Control.Concurrent.MVar       (MVar, newEmptyMVar, putMVar,
-                                                readMVar, tryReadMVar)
-import qualified Data.HashMap                  as Map
+import           Control.Concurrent.MVar      (MVar, newEmptyMVar, putMVar,
+                                               readMVar, tryReadMVar)
+import qualified Data.HashMap                 as Map
 import           Data.List
-import           Data.Maybe                    (Maybe, fromJust, listToMaybe)
-import qualified Data.PQueue.Prio.Min          as PQ
+import           Data.Maybe                   (Maybe, fromJust, listToMaybe)
+import qualified Data.PQueue.Prio.Min         as PQ
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
-test :: ProductId -> ExchangeConf -> Feed -> TestTree
+test :: ProductId -> ExchangeConf -> ProductFeed -> TestTree
 test productId conf feed =
     testGroup
         "Order Book"
         [testCase "Check that order book matches GDAX implementation" $ testImplementation productId conf feed]
 
-testImplementation :: ProductId -> ExchangeConf -> Feed -> Assertion
+testImplementation :: ProductId -> ExchangeConf -> ProductFeed -> Assertion
 testImplementation productId conf feed = do
-    feedListener1 <- newFeedListener feed
-    feedListener2 <- newFeedListener feed
-    waitUntilFeed feedListener1
-    waitUntilFeed feedListener2
+    feedListener1 <- newFeedListener feed >>= waitUntilFeed
+    feedListener2 <- newFeedListener feed >>= waitUntilFeed
     initialBook <- syncOrderBook Nothing PQ.empty productId conf feedListener2
     -- state variables
     bookByIncrementMVar <- newEmptyMVar :: IO (MVar OrderBook)
@@ -43,7 +42,7 @@ testImplementation productId conf feed = do
     bookBySync <- readMVar bookBySyncMVar
     assertEqual (diffBooks bookByIncrement bookBySync) bookByIncrement bookBySync
 
-incrementBook :: MVar OrderBook -> MVar Sequence -> FeedListener -> OrderBook -> IO ()
+incrementBook :: MVar OrderBook -> MVar Sequence -> ProductFeedListener -> OrderBook -> IO ()
 incrementBook bookMVar sequenceMVar feed initialBook = do
     let loop books queue = do
             maybeSequence <- tryReadMVar sequenceMVar
@@ -59,7 +58,7 @@ incrementBook bookMVar sequenceMVar feed initialBook = do
                     putMVar bookMVar $ fromJust $ find ((== sequence) . bookSequence) books
     loop [initialBook] PQ.empty
 
-syncBook :: MVar OrderBook -> MVar Sequence -> ProductId -> ExchangeConf -> FeedListener -> IO ()
+syncBook :: MVar OrderBook -> MVar Sequence -> ProductId -> ExchangeConf -> ProductFeedListener -> IO ()
 syncBook bookMVar sequenceMVar productId conf feed = do
     book <- syncOrderBook Nothing PQ.empty productId conf feed
     putMVar sequenceMVar $ bookSequence book

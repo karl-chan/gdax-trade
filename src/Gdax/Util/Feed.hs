@@ -4,38 +4,24 @@ import           BroadcastChan.Throw            (BroadcastChan, In, Out,
                                                  newBChanListener,
                                                  newBroadcastChan, readBChan,
                                                  writeBChan)
-import           Coinbase.Exchange.Socket       (subscribe)
-import           Coinbase.Exchange.Types        (ApiType (Live))
-import           Coinbase.Exchange.Types.Core   (ProductId)
-import           Coinbase.Exchange.Types.Socket (ExchangeMessage)
-import           Control.Concurrent             (forkIO)
-import           Control.Monad                  (forever, void)
-import           Data.Aeson                     (eitherDecode)
-import           Data.Either
 
-import qualified Network.WebSockets             as WS
+type Feed a = BroadcastChan In a
 
-type Feed = BroadcastChan In ExchangeMessage
+type FeedListener a = BroadcastChan Out a
 
-type FeedListener = BroadcastChan Out ExchangeMessage
+newFeed :: IO (Feed a)
+newFeed = newBroadcastChan
 
-newFeed :: ProductId -> IO Feed
-newFeed productId = do
-    feed <- newBroadcastChan
-    forkIO $
-        subscribe Live [productId] $ \conn -> do
-            forever $ do
-                ds <- WS.receiveData conn
-                let res = eitherDecode ds
-                case res :: Either String ExchangeMessage of
-                    Left err  -> error err
-                    Right msg -> writeBChan feed msg
-    return feed
-
-newFeedListener :: Feed -> IO FeedListener
+newFeedListener :: Feed a -> IO (FeedListener a)
 newFeedListener = newBChanListener
 
-waitUntilFeed :: FeedListener -> IO FeedListener
+waitUntilFeed :: FeedListener a -> IO (FeedListener a)
 waitUntilFeed listener = do
-    readBChan listener
+    readFeed listener
     return listener
+
+readFeed :: FeedListener a -> IO a
+readFeed = readBChan
+
+writeFeed :: Feed a -> a -> IO ()
+writeFeed = writeBChan

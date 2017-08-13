@@ -1,5 +1,6 @@
 module Gdax.Data.OrderBook where
 
+import           Gdax.Data.Product
 import           Gdax.Data.OrderBook.Internal
 import           Gdax.Data.OrderBook.Types
 import           Gdax.Util.Feed
@@ -13,15 +14,14 @@ import qualified Data.HashMap                 as Map
 import           Data.List                    (maximumBy, minimumBy)
 import           Data.Ord                     (comparing)
 
-livecastOrderBook :: ProductId -> ExchangeConf -> Feed -> IO OrderBookBroadcastChan
-livecastOrderBook productId conf feed = do
-    orderBookBroadcastChan <- newBroadcastChan
-    feedListener <- waitUntilFeed =<< newFeedListener feed
-    forkIO $ processOrderBook productId conf feedListener orderBookBroadcastChan
-    return orderBookBroadcastChan
+liveOrderBookFeed :: ProductId -> ExchangeConf -> ProductFeed -> IO OrderBookFeed
+liveOrderBookFeed productId conf feed = do
+    bookFeed <- newFeed
+    forkIO $ processOrderBook productId conf feed bookFeed
+    return bookFeed
 
 ask :: OrderBook -> OrderBookItem
-ask = (minimumBy $ comparing price) . Map.elems . bookAsks
+ask = minimumBy (comparing price) . Map.elems . bookAsks
 
 bid :: OrderBook -> OrderBookItem
-bid = (maximumBy $ comparing price) . Map.elems . bookBids
+bid = maximumBy (comparing price) . Map.elems . bookBids

@@ -9,5 +9,6 @@ packages:
     commit: bab7ee9615ef741683b323d1d32c689b253567ea
   extra-dep: true
 extra-deps:
+- io-throttle-0.1.0
 - uuid-aeson-0.1.0.0
 resolver: lts-8.24

@@ -4,13 +4,21 @@ module Main where
 
 import           Gdax.Data.OrderBook
 import           Gdax.Data.OrderBook.Types
+import           Gdax.Data.Product
+import           Gdax.Data.TimeSeries
+import           Gdax.Data.TimeSeries.Types
 import           Gdax.Util.Auth
 import           Gdax.Util.Feed
 
-import           BroadcastChan.Throw          (newBChanListener, readBChan)
 import           Coinbase.Exchange.Types
 import           Coinbase.Exchange.Types.Core
-import           Control.Monad                (forever)
+import           Control.Concurrent           (forkIO, threadDelay)
+import           Control.Concurrent.STM.TChan
+import           Control.Monad                (forever, when)
+import           Control.Monad.STM
+import           Data.Maybe
+import           Data.Time.Calendar           (fromGregorian)
+import           Data.Time.Clock              (UTCTime(..))
 
 currencyPair :: ProductId
 currencyPair = "ETH-EUR"
@@ -18,11 +26,19 @@ currencyPair = "ETH-EUR"
 runMode :: ApiType
 runMode = Live
 
+startTime :: UTCTime
+startTime = UTCTime (fromGregorian 2017 8 1) 0
+
+granularity :: Granularity
+granularity = 60 -- 1 minute
+
 main :: IO ()
 main = do
     conf <- getConf runMode
-    feed <- newFeed currencyPair
-    orderBookListener <- newBChanListener =<< livecastOrderBook currencyPair conf feed
+    productFeed <- newProductFeed currencyPair
+--    bookFeed <- liveOrderBookFeed currencyPair conf productFeed
+    tsFeed <- liveTSFeed startTime granularity currencyPair conf productFeed
+    tsListener <- newFeedListener tsFeed
     forever $ do
-        book <- readBChan orderBookListener
-        putStrLn $ (show $ bookSequence book) ++ (show $ ask book) ++ (show $ bid book)
+        ts <- readFeed tsListener
+        return ()
