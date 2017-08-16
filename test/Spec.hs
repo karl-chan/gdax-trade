@@ -2,26 +2,25 @@
 
 import qualified Gdax.Data.OrderBook.Test       as OrderBook
 import           Gdax.Data.Product
-import           Gdax.Util.Auth
-import           Gdax.Util.Feed
+import           Gdax.Util.Config
 
 import           Coinbase.Exchange.Types
 import           Coinbase.Exchange.Types.Core
-import           Coinbase.Exchange.Types.Socket
 
 import           Test.Tasty
 
 testRunMode :: ApiType
 testRunMode = Live
 
-testCurrencyPair :: ProductId
-testCurrencyPair = "BTC-USD"
+testProduct :: ProductId
+testProduct = "BTC-USD"
 
 main :: IO ()
 main = do
-    testConf <- getConf testRunMode
-    testFeed <- newProductFeed testCurrencyPair
-    defaultMain $ tests testCurrencyPair testConf testFeed
+    testConfig <- getGlobalConfig testRunMode
+    testFeed <- newProductFeed [testProduct]
+    defaultMain $ tests testProduct testFeed testConfig
 
-tests :: ProductId -> ExchangeConf -> ProductFeed -> TestTree
-tests productId conf feed = testGroup "All tests" [OrderBook.test productId conf feed]
+tests :: ProductId -> ProductFeed -> Config -> TestTree
+tests productId productFeed config = do
+    testGroup "All tests" [OrderBook.test productId productFeed config]

@@ -5,13 +5,13 @@ module Gdax.Data.TimeSeries.Internal where
 import           Gdax.Data.OrderBook.Types
 import           Gdax.Data.Product
 import           Gdax.Data.TimeSeries.Types
-import           Gdax.Util.Constants
-import           Gdax.Util.Exchange
+import           Gdax.Util.Config
 import           Gdax.Util.Feed
+import           Gdax.Util.Queue
 import           Gdax.Util.Throttle
 
 import           Coinbase.Exchange.MarketData       (getHistory)
-import           Coinbase.Exchange.Types            (ExchangeConf, runExchange)
+import           Coinbase.Exchange.Types            (ExchangeConf, execExchange)
 import           Coinbase.Exchange.Types.Core       (OrderId, Price (..),
                                                      ProductId, Sequence,
                                                      Side (Buy, Sell),
@@ -33,44 +33,69 @@ import           BroadcastChan.Throw                (readBChan)
 import           Control.Concurrent                 (forkIO, threadDelay)
 import           Control.Concurrent.MVar            (MVar, newMVar, readMVar,
                                                      swapMVar)
-import           Control.Exception                  (throw)
+import           Control.Exception                  (SomeException, catch)
 import           Control.Monad                      (forever, void)
 import           Data.List                          (head, insert, null)
 import           Data.Map                           (Map)
-import qualified Data.Map as Map
-import           Data.Maybe                         (listToMaybe)
+import qualified Data.Map                           as Map
+import           Data.Maybe                         (listToMaybe, maybe)
 import           Data.Time.Clock                    (NominalDiffTime, UTCTime,
                                                      addUTCTime, diffUTCTime,
                                                      getCurrentTime)
 import           Data.Time.Clock.POSIX              (posixSecondsToUTCTime)
 import           Debug.Trace                        (traceIO)
 
-type EndTime = UTCTime
-
-processSeries :: StartTime -> Granularity -> ProductId -> ExchangeConf -> ProductFeed -> TimeSeriesFeed -> IO ()
-processSeries startTime granularity productId conf productFeed tsFeed = do
+processSeries :: StartTime -> Granularity -> ProductId -> ProductFeed -> TimeSeriesFeed -> Config -> IO ()
+processSeries startTime granularity productId productFeed tsFeed config = do
     productFeedListener <- newFeedListener productFeed
     now <- getCurrentTime
-    initialSeries <- restSeries startTime now granularity productId conf
+    initialSeries <- restSeries startTime now granularity productId config
     let forever' series = do
             writeFeed tsFeed series
-            newSeries <- updateSeries series granularity productFeedListener
-            traceIO $ "New ts range: " ++ (show . fst . Map.findMin) newSeries ++ " - " ++ (show . fst . Map.findMax) newSeries
+            newStat <- createStat granularity productFeedListener
+            traceIO $ "New stat: " ++ show newStat
+            let newSeries = maybe series (insertTS series) newStat
+            traceIO $ "New time series range: " ++ showRange newSeries
             forever' newSeries
     forever' initialSeries
 
-restSeries :: StartTime -> EndTime -> Granularity -> ProductId -> ExchangeConf -> IO TimeSeries
-restSeries startTime endTime granularity productId conf = do
-    let intervalLength = granularity * fromIntegral maxRestDataPoints
+restSeries :: StartTime -> EndTime -> Granularity -> ProductId -> Config -> IO TimeSeries
+restSeries startTime endTime granularity productId config = do
+    let c = concurrency config
+        d = dataLimit config
+        p = pauseGap config
+        r = retryGap config
+        intervalLength = granularity * fromIntegral d
         boundaries = insert endTime $ takeWhile (< endTime) $ iterate (addUTCTime intervalLength) startTime
         intervals = zip boundaries $ tail boundaries
-        getSeries s e = restSeries' s e granularity productId conf
-    ts <- fmap concatTS $ throttle maxRestRate 1 $ map (uncurry getSeries) intervals
-    traceIO $ "All REST ts received: " ++ show startTime ++ " - " ++ show endTime
-    return ts
+        getSeries s e = restSeries' s e granularity productId (exchangeConf config) r
+    series <- fmap concatTS $ throttle c p $ map (uncurry getSeries) intervals
+    traceIO $ "All REST time series received: " ++ showRange series
+    return series
 
-updateSeries :: TimeSeries -> Granularity -> ProductFeedListener -> IO TimeSeries
-updateSeries series granularity productFeedListener = do
+restSeries' :: StartTime -> EndTime -> Granularity -> ProductId -> ExchangeConf -> NominalDiffTime -> IO TimeSeries
+restSeries' startTime endTime granularity productId exchangeConf retryGap = do
+    let trial =
+            catch
+                (do candles <-
+                        execExchange exchangeConf $
+                        getHistory productId (Just startTime) (Just endTime) (Just $ (floor . toSeconds) granularity)
+                    let series = fromCandles candles granularity
+                    traceIO $ "REST time series received: " ++ showRange series
+                    return series)
+                (\err -> do
+                     traceIO $
+                         "REST failed for search: " ++
+                         (show startTime) ++
+                         " - " ++
+                         (show endTime) ++
+                         ", will retry after " ++ show retryGap ++ ".\n" ++ show (err :: SomeException)
+                     sleep retryGap
+                     trial)
+    trial
+
+createStat :: Granularity -> ProductFeedListener -> IO (Maybe Stat)
+createStat granularity productFeedListener = do
     countdownTimer <- newMVar False :: IO (MVar Bool)
     forkIO $ do
         sleep granularity
@@ -80,18 +105,22 @@ updateSeries series granularity productFeedListener = do
             exchangeMsg <- readFeed productFeedListener
             let newQueue = enqueue queue exchangeMsg
             if timeIsUp
-                then return $ updateWithExchangeMessages series queue
+                then return $ queueToStat queue
                 else loop newQueue
     loop newExchangeMsgQueue
 
-restSeries' :: StartTime -> EndTime -> Granularity -> ProductId -> ExchangeConf -> IO TimeSeries
-restSeries' startTime endTime granularity productId conf = do
-    res <-
-        runExchange conf $ getHistory productId (Just startTime) (Just endTime) (Just $ (floor . toSeconds) granularity)
-    traceIO $ "REST ts received: " ++ show startTime ++ " - " ++ show endTime
-    case res of
-        Left err      -> throw err
-        Right candles -> return $ fromCandles candles granularity
+queueToStat :: ExchangeMsgQueue -> Maybe Stat
+queueToStat queue =
+    let matchQueue =
+            queueFilter
+                (\m ->
+                     case m of
+                         Match {..} -> True
+                         _          -> False)
+                queue
+    in if queueNull matchQueue
+           then Nothing
+           else Just $ dequeue matchQueue updateStat $ (initStat . queueHead) matchQueue
 
 fromCandles :: [Candle] -> Granularity -> TimeSeries
 fromCandles candles granularity = Map.fromList $ map toKeyValue $ frontSeries ++ [lastSeries]
@@ -111,21 +140,6 @@ fromCandles candles granularity = Map.fromList $ map toKeyValue $ frontSeries ++
     fromNeighbouringCandles candle@(Candle s _ _ _ _ _) (Candle e _ _ _ _ _) = fromCandle candle $ diffUTCTime e s
     toKeyValue stat = (start stat, stat)
 
-updateWithExchangeMessages :: TimeSeries -> ExchangeMsgQueue -> TimeSeries
-updateWithExchangeMessages series queue =
-    let msgs = queueElems queue
-        matchMsgs =
-            filter
-                (\m ->
-                     case m of
-                         Match {..} -> True
-                         _          -> False)
-                msgs
-    in if null matchMsgs
-           then series
-           else let newStat = dequeue queue updateStat $ (initStat . head) matchMsgs
-                in insertTS series newStat
-
 initStat :: ExchangeMessage -> Stat
 initStat Match {..} =
     Stat
@@ -142,3 +156,8 @@ updateStat Stat {..} msg@Match {..} =
     , close = msgPrice
     , volume = volume + msgSize
     }
+
+showRange :: TimeSeries -> String
+showRange series =
+    let (start, end) = rangeTS series
+    in show start ++ " - " ++ show end

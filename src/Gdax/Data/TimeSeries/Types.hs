@@ -32,6 +32,8 @@ type TimeSeriesFeed = BroadcastChan In TimeSeries
 
 type StartTime = UTCTime
 
+type EndTime = UTCTime
+
 type Granularity = NominalDiffTime
 
 insertTS :: TimeSeries -> Stat -> TimeSeries
@@ -40,8 +42,14 @@ insertTS series stat = Map.insert (start stat) stat series
 concatTS :: [TimeSeries] -> TimeSeries
 concatTS = Map.unions
 
+minTS :: TimeSeries -> Stat
+minTS = snd . Map.findMin
+
+maxTS :: TimeSeries -> Stat
+maxTS = snd . Map.findMax
+
+rangeTS :: TimeSeries -> (StartTime, EndTime)
+rangeTS series = ((start . minTS) series, (end . maxTS) series)
+
 toSeconds :: Granularity -> Double
 toSeconds = realToFrac
-
-sleep :: Granularity -> IO ()
-sleep granularity = threadDelay $ (floor . (* 1e6) . toSeconds) granularity

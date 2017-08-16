@@ -16,7 +16,6 @@ import           GHC.Generics                 (Generic)
 
 data OrderBook = OrderBook
     { bookSequence :: Sequence
-    , bookTime :: UTCTime
     , bookBids     :: OrderBookItems
     , bookAsks     :: OrderBookItems
     } deriving (Eq, Show, Data, Typeable, Generic, NFData)

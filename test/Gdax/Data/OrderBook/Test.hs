@@ -2,79 +2,83 @@ module Gdax.Data.OrderBook.Test where
 
 import           Gdax.Data.OrderBook.Internal
 import           Gdax.Data.OrderBook.Types
-import           Gdax.Util.Feed
 import           Gdax.Data.Product
+import           Gdax.Util.Config
+import           Gdax.Util.Feed
+import           Gdax.Util.Throttle
 
-import           Coinbase.Exchange.Types      (ExchangeConf)
 import           Coinbase.Exchange.Types.Core (ProductId, Sequence)
 
 import           Control.Concurrent           (forkIO)
-
-import           Control.Concurrent.MVar      (MVar, newEmptyMVar, putMVar,
-                                               readMVar, tryReadMVar)
+import           Control.Concurrent.MVar
+import           Control.Monad.Reader
 import qualified Data.HashMap                 as Map
 import           Data.List
-import           Data.Maybe                   (Maybe, fromJust, listToMaybe)
-import qualified Data.PQueue.Prio.Min         as PQ
+import           Data.Maybe
+import           Data.Time.Clock
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
-test :: ProductId -> ExchangeConf -> ProductFeed -> TestTree
-test productId conf feed =
+syncDelay :: NominalDiffTime
+syncDelay = 30 -- 30 seconds
+
+
+test :: ProductId -> ProductFeed -> Config -> TestTree
+test productId productFeed config = do
     testGroup
         "Order Book"
-        [testCase "Check that order book matches GDAX implementation" $ testImplementation productId conf feed]
+        [testCase "Check that order book matches GDAX implementation" $ testImplementation productId productFeed config]
 
-testImplementation :: ProductId -> ExchangeConf -> ProductFeed -> Assertion
-testImplementation productId conf feed = do
-    feedListener1 <- newFeedListener feed >>= waitUntilFeed
-    feedListener2 <- newFeedListener feed >>= waitUntilFeed
-    initialBook <- syncOrderBook Nothing PQ.empty productId conf feedListener2
+testImplementation :: ProductId -> ProductFeed -> Config -> Assertion
+testImplementation productId productFeed config = do
+    feedListener <- newFeedListener productFeed >>= waitUntilFeed
+    feedListener2 <- newFeedListener productFeed >>= waitUntilFeed
+    initialBook <- runReaderT (initialiseOrderBook productId feedListener) config
     -- state variables
-    bookByIncrementMVar <- newEmptyMVar :: IO (MVar OrderBook)
-    bookBySyncMVar <- newEmptyMVar :: IO (MVar OrderBook)
-    bookSequenceMVar <- newEmptyMVar :: IO (MVar Sequence)
+    sequenceSignal <- newEmptyMVar :: IO (MVar Sequence)
     -- async update order book
-    forkIO $ incrementBook bookByIncrementMVar bookSequenceMVar feedListener1 initialBook
-    forkIO $ syncBook bookBySyncMVar bookSequenceMVar productId conf feedListener2
+    bookByIncrementRef <- localBook initialBook sequenceSignal productId feedListener config
+    bookBySyncRef <- serverBookWithDelay syncDelay sequenceSignal productId config
     -- compare order books
-    bookByIncrement <- readMVar bookByIncrementMVar
-    bookBySync <- readMVar bookBySyncMVar
-    assertEqual (diffBooks bookByIncrement bookBySync) bookByIncrement bookBySync
+    bookByIncrement <- readMVar bookByIncrementRef
+    bookBySync <- readMVar bookBySyncRef
+    assertBool (diffBooks bookByIncrement bookBySync) (bookByIncrement == bookBySync)
 
-incrementBook :: MVar OrderBook -> MVar Sequence -> ProductFeedListener -> OrderBook -> IO ()
-incrementBook bookMVar sequenceMVar feed initialBook = do
-    let loop books queue = do
-            maybeSequence <- tryReadMVar sequenceMVar
-            case maybeSequence of
-                Nothing -> do
-                    (newMaybeBook, newQueue, bookUpdated) <- tryIncrementOrderBook (listToMaybe books) queue feed
-                    let newBooks =
-                            if bookUpdated
-                                then (fromJust newMaybeBook) : books
-                                else books
-                    loop newBooks newQueue
-                Just sequence -> do
-                    putMVar bookMVar $ fromJust $ find ((== sequence) . bookSequence) books
-    loop [initialBook] PQ.empty
+--    forkIO . forever $ readFeed feedListener2 >>= print
+localBook :: OrderBook -> MVar Sequence -> ProductId -> ProductFeedListener -> Config -> IO (MVar OrderBook)
+localBook initialBook sequenceIn productId productFeedListener config = do
+    bookRef <- newEmptyMVar
+    forkIO $ do
+        let loop books = do
+                targetSeq <- tryReadMVar sequenceIn
+                case targetSeq of
+                    Nothing -> do
+                        newBook <- runReaderT (incrementOrderBook (head books) productId productFeedListener) config
+                        loop (newBook : books)
+                    Just sequence -> putMVar bookRef $ fromJust $ find ((== sequence) . bookSequence) books
+        loop [initialBook]
+    return bookRef
 
-syncBook :: MVar OrderBook -> MVar Sequence -> ProductId -> ExchangeConf -> ProductFeedListener -> IO ()
-syncBook bookMVar sequenceMVar productId conf feed = do
-    book <- syncOrderBook Nothing PQ.empty productId conf feed
-    putMVar sequenceMVar $ bookSequence book
-    putMVar bookMVar book
+serverBookWithDelay :: NominalDiffTime -> MVar Sequence -> ProductId -> Config -> IO (MVar OrderBook)
+serverBookWithDelay delay sequenceOut productId config = do
+    bookRef <- newEmptyMVar
+    forkIO $ do
+        sleep delay
+        book <- restOrderBook productId (exchangeConf config)
+        putMVar sequenceOut (bookSequence book)
+        putMVar bookRef book
+    return bookRef
 
 diffBooks :: OrderBook -> OrderBook -> String
 diffBooks book1 book2 =
     "Sequence: " ++
-    (show $ bookSequence book1) ++
+    (show . bookSequence) book1 ++
     " vs " ++
-    (show $ bookSequence book2) ++
+    (show . bookSequence) book2 ++
     "\nBids diff (1-2): " ++
-    (diffItems bookBids book1 book2) ++
+    diffItems bookBids book1 book2 ++
     "\nBids diff (2-1): " ++
-    (diffItems bookBids book2 book1) ++
-    "\nAsks diff (1-2): " ++
-    (diffItems bookAsks book1 book2) ++ "\nAsks diff (2-1): " ++ (diffItems bookAsks book2 book1)
+    diffItems bookBids book2 book1 ++
+    "\nAsks diff (1-2): " ++ diffItems bookAsks book1 book2 ++ "\nAsks diff (2-1): " ++ diffItems bookAsks book2 book1
   where
-    diffItems prop items1 items2 = show $ Map.difference (prop items1) (prop items2)
+    diffItems prop items1 items2 = show $ (Map.elems $ prop items1) \\ (Map.elems $ prop items2)

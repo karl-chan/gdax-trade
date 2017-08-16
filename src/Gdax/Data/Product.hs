@@ -18,11 +18,11 @@ type ProductFeed = Feed ExchangeMessage
 
 type ProductFeedListener = FeedListener ExchangeMessage
 
-newProductFeed :: ProductId -> IO ProductFeed
-newProductFeed productId = do
+newProductFeed :: [ProductId] -> IO ProductFeed
+newProductFeed productIds = do
     productFeed <- newFeed
     forkIO $
-        subscribe Live [productId] $ \conn -> forever $ do
+        subscribe Live productIds $ \conn -> forever $ do
                 ds <- WS.receiveData conn
                 let res = eitherDecode ds
                 case res :: Either String ExchangeMessage of

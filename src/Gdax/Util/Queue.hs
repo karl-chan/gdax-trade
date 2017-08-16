@@ -1,4 +1,4 @@
-module Gdax.Util.Exchange where
+module Gdax.Util.Queue where
 
 import           Gdax.Util.Feed
 
@@ -27,11 +27,20 @@ newExchangeMsgQueue = PQ.empty
 queueDropWhileWithKey :: (Sequence -> ExchangeMessage -> Bool) -> ExchangeMsgQueue -> ExchangeMsgQueue
 queueDropWhileWithKey = PQ.dropWhileWithKey
 
+queueHead :: ExchangeMsgQueue -> ExchangeMessage
+queueHead = snd . PQ.findMin
+
 queueKeysU :: ExchangeMsgQueue -> [Sequence]
 queueKeysU = PQ.keysU
 
 queueElems :: ExchangeMsgQueue -> [ExchangeMessage]
 queueElems = PQ.elemsU
+
+queueFilter :: (ExchangeMessage -> Bool) -> ExchangeMsgQueue -> ExchangeMsgQueue
+queueFilter = PQ.filter
+
+queueNull :: ExchangeMsgQueue -> Bool
+queueNull = PQ.null
 
 queueSize :: ExchangeMsgQueue -> Int
 queueSize = PQ.size

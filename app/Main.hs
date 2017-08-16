@@ -7,7 +7,7 @@ import           Gdax.Data.OrderBook.Types
 import           Gdax.Data.Product
 import           Gdax.Data.TimeSeries
 import           Gdax.Data.TimeSeries.Types
-import           Gdax.Util.Auth
+import           Gdax.Util.Config
 import           Gdax.Util.Feed
 
 import           Coinbase.Exchange.Types
@@ -18,7 +18,7 @@ import           Control.Monad                (forever, when)
 import           Control.Monad.STM
 import           Data.Maybe
 import           Data.Time.Calendar           (fromGregorian)
-import           Data.Time.Clock              (UTCTime(..))
+import           Data.Time.Clock              (UTCTime (..))
 
 currencyPair :: ProductId
 currencyPair = "ETH-EUR"
@@ -34,10 +34,10 @@ granularity = 60 -- 1 minute
 
 main :: IO ()
 main = do
-    conf <- getConf runMode
-    productFeed <- newProductFeed currencyPair
+    config <- getGlobalConfig runMode
+    productFeed <- newProductFeed [currencyPair]
 --    bookFeed <- liveOrderBookFeed currencyPair conf productFeed
-    tsFeed <- liveTSFeed startTime granularity currencyPair conf productFeed
+    tsFeed <- liveTSFeed startTime granularity currencyPair productFeed config
     tsListener <- newFeedListener tsFeed
     forever $ do
         ts <- readFeed tsListener

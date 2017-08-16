@@ -12,24 +12,23 @@ category:            Web
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
-data-dir:            data
-data-files:          gdaxCredentials.json
+data-files:          config.yaml
 
 library
   hs-source-dirs:      src
   exposed-modules:     Gdax.Data.OrderBook
                      , Gdax.Data.OrderBook.Types
+                     , Gdax.Data.OrderBook.Internal
                      , Gdax.Data.Product
                      , Gdax.Data.TimeSeries
                      , Gdax.Data.TimeSeries.Types
-                     , Gdax.Util.Auth
+                     , Gdax.Util.Config
                      , Gdax.Util.Feed
                      , Gdax.Util.Throttle
-                     , Gdax.Util.Exchange
+                     , Gdax.Util.Queue
   other-modules:       Paths_gdax_trade
-                     , Gdax.Data.OrderBook.Internal
                      , Gdax.Data.TimeSeries.Internal
-                     , Gdax.Util.Constants
+                     , Gdax.Util.Config.Internal
   build-depends:       base >= 4.7 && < 5
                      , coinbase-exchange
                      , aeson
@@ -41,10 +40,13 @@ library
                      , hashmap
                      , http-client
                      , http-client-tls
+                     , mtl
                      , pqueue
                      , stm
+                     , text
                      , time
                      , websockets
+                     , yaml
   default-language:    Haskell2010
 
 executable gdax-trade-exe
@@ -67,15 +69,18 @@ executable gdax-trade-exe
 test-suite gdax-trade-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
-  other-modules:     Gdax.Data.OrderBook.Test
+  other-modules:       Gdax.Data.OrderBook.Test
+  ghc-options:         -fwarn-unused-imports
   main-is:             Spec.hs
   build-depends:       base
                      , gdax-trade
                      , coinbase-exchange
                      , hashmap
+                     , mtl
                      , pqueue
                      , tasty
                      , tasty-hunit
+                     , time
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N -O1
   default-language:    Haskell2010
 
