@@ -2,7 +2,8 @@ module Gdax.Data.OrderBook.Test where
 
 import           Gdax.Data.OrderBook.Internal
 import           Gdax.Data.OrderBook.Types
-import           Gdax.Data.Product
+import           Gdax.Types.Product
+import           Gdax.Types.Product.Feed
 import           Gdax.Util.Config
 import           Gdax.Util.Feed
 import           Gdax.Util.Throttle
@@ -22,49 +23,48 @@ import           Test.Tasty.HUnit
 syncDelay :: NominalDiffTime
 syncDelay = 30 -- 30 seconds
 
-
-test :: ProductId -> ProductFeed -> Config -> TestTree
-test productId productFeed config = do
+test :: Product -> ProductFeed -> Config -> TestTree
+test product productFeed config = do
     testGroup
         "Order Book"
-        [testCase "Check that order book matches GDAX implementation" $ testImplementation productId productFeed config]
+        [testCase "Check that order book matches GDAX implementation" $ testImplementation product productFeed config]
 
-testImplementation :: ProductId -> ProductFeed -> Config -> Assertion
-testImplementation productId productFeed config = do
+testImplementation :: Product -> ProductFeed -> Config -> Assertion
+testImplementation product productFeed config = do
     feedListener <- newFeedListener productFeed >>= waitUntilFeed
     feedListener2 <- newFeedListener productFeed >>= waitUntilFeed
-    initialBook <- runReaderT (initialiseOrderBook productId feedListener) config
+    initialBook <- runReaderT (initialiseOrderBook product feedListener) config
     -- state variables
     sequenceSignal <- newEmptyMVar :: IO (MVar Sequence)
     -- async update order book
-    bookByIncrementRef <- localBook initialBook sequenceSignal productId feedListener config
-    bookBySyncRef <- serverBookWithDelay syncDelay sequenceSignal productId config
+    bookByIncrementRef <- localBook initialBook sequenceSignal product feedListener config
+    bookBySyncRef <- serverBookWithDelay syncDelay sequenceSignal product config
     -- compare order books
     bookByIncrement <- readMVar bookByIncrementRef
     bookBySync <- readMVar bookBySyncRef
     assertBool (diffBooks bookByIncrement bookBySync) (bookByIncrement == bookBySync)
 
 --    forkIO . forever $ readFeed feedListener2 >>= print
-localBook :: OrderBook -> MVar Sequence -> ProductId -> ProductFeedListener -> Config -> IO (MVar OrderBook)
-localBook initialBook sequenceIn productId productFeedListener config = do
+localBook :: OrderBook -> MVar Sequence -> Product -> ProductFeedListener -> Config -> IO (MVar OrderBook)
+localBook initialBook sequenceIn product productFeedListener config = do
     bookRef <- newEmptyMVar
     forkIO $ do
         let loop books = do
                 targetSeq <- tryReadMVar sequenceIn
                 case targetSeq of
                     Nothing -> do
-                        newBook <- runReaderT (incrementOrderBook (head books) productId productFeedListener) config
+                        newBook <- runReaderT (incrementOrderBook (head books) product productFeedListener) config
                         loop (newBook : books)
                     Just sequence -> putMVar bookRef $ fromJust $ find ((== sequence) . bookSequence) books
         loop [initialBook]
     return bookRef
 
-serverBookWithDelay :: NominalDiffTime -> MVar Sequence -> ProductId -> Config -> IO (MVar OrderBook)
-serverBookWithDelay delay sequenceOut productId config = do
+serverBookWithDelay :: NominalDiffTime -> MVar Sequence -> Product -> Config -> IO (MVar OrderBook)
+serverBookWithDelay delay sequenceOut product config = do
     bookRef <- newEmptyMVar
     forkIO $ do
         sleep delay
-        book <- restOrderBook productId (exchangeConf config)
+        book <- runReaderT (restOrderBook product) config
         putMVar sequenceOut (bookSequence book)
         putMVar bookRef book
     return bookRef

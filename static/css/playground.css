@@ -1,0 +1,22 @@
+.output-area {
+    width: 80%;
+    margin: 0 auto;
+}
+
+.gdax-docs {
+    height: 80vh;
+}
+
+.fab {
+    position: fixed;
+    right: 50px;
+    z-index: 1;
+}
+
+.fab.fab-up {
+    bottom: 120px;
+}
+
+.fab.fab-down {
+    bottom: 50px;
+}

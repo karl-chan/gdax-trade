@@ -1,7 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import qualified Gdax.Data.OrderBook.Test       as OrderBook
-import           Gdax.Data.Product
+import qualified Gdax.Data.OrderBook.Test     as OrderBook
+import           Gdax.Data.TimeSeries
+import qualified Gdax.Data.TimeSeries.Test    as TimeSeries
+import           Gdax.Data.TimeSeries.Types
+import           Gdax.Types.Currency
+import           Gdax.Types.Product
+import           Gdax.Types.Product.Feed
 import           Gdax.Util.Config
 
 import           Coinbase.Exchange.Types
@@ -9,18 +14,18 @@ import           Coinbase.Exchange.Types.Core
 
 import           Test.Tasty
 
-testRunMode :: ApiType
-testRunMode = Live
+granularity :: Granularity
+granularity = 60 -- 60 seconds
 
-testProduct :: ProductId
-testProduct = "BTC-USD"
+testProduct :: Product
+testProduct = Pair BTC USD
 
 main :: IO ()
 main = do
-    testConfig <- getGlobalConfig testRunMode
+    testConfig <- getGlobalConfig
     testFeed <- newProductFeed [testProduct]
     defaultMain $ tests testProduct testFeed testConfig
 
-tests :: ProductId -> ProductFeed -> Config -> TestTree
-tests productId productFeed config = do
-    testGroup "All tests" [OrderBook.test productId productFeed config]
+tests :: Product -> ProductFeed -> Config -> TestTree
+tests product productFeed config = testGroup "All tests" [OrderBook.test product productFeed config]
+--        TimeSeries.test granularity product productFeed config]

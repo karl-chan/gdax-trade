@@ -3,8 +3,18 @@ credentials:
   coinbase_secret: 7e1AzBMYKup82zF1PN6yRqhRoRRG2gvifnOcrm0pR3Jmy5vm4GjkVoKMx+BU5Mj0MDYlbkF3XkyIwUWKLIEvEQ==
   coinbase_passphrase: Pas$p4ra$3
 api:
-  concurrency: 3
-  data_limit: 200
-  pause_gap: 1      # 1s
-  retry_gap: 10     # 10s if rate limit exceeded
+  granularity: 300 # 5 mins
+  mode: live
+  throttle:
+    concurrency: 3
+    data_limit: 200
+    pause_gap: 1      # 1s
+    retry_gap: 10     # 10s if rate limit exceeded
+server:
+  port: 8080
+  user: kwc113
+  password: KWCh9455
+log:
+  level: debug
+
 

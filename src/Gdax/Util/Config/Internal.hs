@@ -21,28 +21,46 @@ import qualified Data.Yaml                  as Y
 import           GHC.Generics               (Generic)
 
 data RawConfig = RawConfig
-    { credentials :: RawCredentials
-    , api         :: RawApi
+    { credentials :: RawCredentialsConfig
+    , api         :: RawApiConfig
+    , server      :: RawServerConfig
+    , log         :: RawLogConfig
     } deriving (FromJSON, Generic)
 
-data RawCredentials = RawCredentials
+data RawCredentialsConfig = RawCredentialsConfig
     { coinbaseKey        :: Text
     , coinbaseSecret     :: Text
     , coinbasePassphrase :: Text
     } deriving (Generic)
 
-instance FromJSON RawCredentials where
+instance FromJSON RawCredentialsConfig where
     parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
 
-data RawApi = RawApi
+data RawApiConfig = RawApiConfig
+    { granularity :: Int
+    , mode        :: String
+    , throttle    :: RawThrottleConfig
+    } deriving (FromJSON, Generic)
+
+data RawServerConfig = RawServerConfig
+    { port     :: Int
+    , user     :: String
+    , password :: String
+    } deriving (FromJSON, Generic)
+
+data RawThrottleConfig = RawThrottleConfig
     { concurrency :: Int
     , dataLimit   :: Int
     , pauseGap    :: Double
     , retryGap    :: Double
     } deriving (Generic)
 
-instance FromJSON RawApi where
+instance FromJSON RawThrottleConfig where
     parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
+
+data RawLogConfig = RawLogConfig
+    { level :: String
+    } deriving (Generic, FromJSON)
 
 getRawConfig :: FilePath -> IO RawConfig
 getRawConfig path = fmap fromJust $ decodeFile path

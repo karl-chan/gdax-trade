@@ -3,13 +3,15 @@
 module Gdax.Data.OrderBook.Internal where
 
 import           Gdax.Data.OrderBook.Types
-import           Gdax.Data.Product
+import           Gdax.Types.Product
+import           Gdax.Types.Product.Feed
 import           Gdax.Util.Config
 import           Gdax.Util.Feed
 import           Gdax.Util.Queue
 
 import           Coinbase.Exchange.MarketData       (getOrderBook)
-import           Coinbase.Exchange.Types            (ExchangeConf, runExchange)
+import           Coinbase.Exchange.Types            (ExchangeConf, execExchange,
+                                                     execExchangeT)
 import           Coinbase.Exchange.Types.Core       (OrderId, ProductId,
                                                      Side (Buy, Sell))
 import           Coinbase.Exchange.Types.MarketData (Book (Book),
@@ -38,45 +40,44 @@ import           Data.List                          (sort)
 import           Data.Maybe                         (fromJust, fromMaybe,
                                                      isJust, isNothing,
                                                      maybeToList)
-import           Data.Time.Clock                    (getCurrentTime)
 import           Network.WebSockets                 (ClientApp, Connection,
                                                      receiveData)
 
 type TransformFunc = OrderBookItem -> OrderBookItem
 
-processOrderBook :: ProductId -> ProductFeedListener -> ReaderT Config IO OrderBookFeed
-processOrderBook productId productFeedListener = do
+processOrderBook :: Product -> ProductFeedListener -> ReaderT Config IO OrderBookFeed
+processOrderBook product productFeedListener = do
     config <- ask
     bookFeed <- liftIO newFeed
     liftIO . forkIO $ do
-        initialBook <- runReaderT (initialiseOrderBook productId productFeedListener) config
+        initialBook <- runReaderT (initialiseOrderBook product productFeedListener) config
         let loop book = do
-                newBook <- runReaderT (incrementOrderBook book productId productFeedListener) config
+                newBook <- runReaderT (incrementOrderBook book product productFeedListener) config
                 writeFeed bookFeed newBook
                 loop newBook
         loop initialBook
     return bookFeed
 
-initialiseOrderBook :: ProductId -> ProductFeedListener -> ReaderT Config IO OrderBook
-initialiseOrderBook productId productFeedListener = do
-    conf <- reader exchangeConf
+initialiseOrderBook :: Product -> ProductFeedListener -> ReaderT Config IO OrderBook
+initialiseOrderBook product productFeedListener = do
+    config <- ask
     restBookRef <- liftIO newEmptyMVar :: ReaderT Config IO (MVar OrderBook)
     liftIO . forkIO $ do
-        book <- restOrderBook productId conf
+        book <- runReaderT (restOrderBook product) config
         putMVar restBookRef book
-    liftIO $ syncOrderBook restBookRef productId productFeedListener
+    liftIO $ syncOrderBook restBookRef product productFeedListener
 
-incrementOrderBook :: OrderBook -> ProductId -> ProductFeedListener -> ReaderT Config IO OrderBook
-incrementOrderBook book productId productFeedListener = do
+incrementOrderBook :: OrderBook -> Product -> ProductFeedListener -> ReaderT Config IO OrderBook
+incrementOrderBook book product productFeedListener = do
     let initialQueue = newExchangeMsgQueue
         loop queue = do
             let shouldSync = queueSize queue >= queueThreshold
             if shouldSync
                 then do
-                    initialiseOrderBook productId productFeedListener
+                    initialiseOrderBook product productFeedListener
                 else do
                     exchangeMsg <- liftIO $ readFeed productFeedListener
-                    let newQueue = safeAddToQueue queue exchangeMsg productId
+                    let newQueue = safeAddToQueue queue exchangeMsg product
                     if canDequeue book newQueue
                         then return $ dequeue newQueue updateOrderBook book
                         else loop newQueue
@@ -87,9 +88,9 @@ canDequeue prevBook queue =
     let sequences = bookSequence prevBook : queueKeysU queue
     in sort sequences == [minimum sequences .. maximum sequences]
 
-safeAddToQueue :: ExchangeMsgQueue -> ExchangeMessage -> ProductId -> ExchangeMsgQueue
-safeAddToQueue queue exchangeMsg productId =
-    if msgProductId exchangeMsg == productId
+safeAddToQueue :: ExchangeMsgQueue -> ExchangeMessage -> Product -> ExchangeMsgQueue
+safeAddToQueue queue exchangeMsg product =
+    if msgProductId exchangeMsg == toId product
         then enqueue queue exchangeMsg
         else queue
 
@@ -99,12 +100,12 @@ replayMessages queue book =
         replayQueue = queueDropWhileWithKey outdated queue
     in dequeue replayQueue updateOrderBook book
 
-syncOrderBook :: MVar OrderBook -> ProductId -> ProductFeedListener -> IO OrderBook
-syncOrderBook restBookRef productId productFeedListener = do
+syncOrderBook :: MVar OrderBook -> Product -> ProductFeedListener -> IO OrderBook
+syncOrderBook restBookRef product productFeedListener = do
     waitUntilFeed productFeedListener
     let queueUntilSynced queue = do
             exchangeMsg <- readFeed productFeedListener
-            let newQueue = safeAddToQueue queue exchangeMsg productId
+            let newQueue = safeAddToQueue queue exchangeMsg product
             maybeBook <- tryReadMVar restBookRef
             case maybeBook of
                 Nothing -> queueUntilSynced newQueue
@@ -112,22 +113,15 @@ syncOrderBook restBookRef productId productFeedListener = do
                     return $ replayMessages newQueue restBook
     queueUntilSynced newExchangeMsgQueue
 
-restOrderBook :: ProductId -> ExchangeConf -> IO OrderBook
-restOrderBook productId conf = do
-    res <- runExchange conf $ getOrderBook productId
-    case res of
-        Left err      -> throw err
-        Right rawBook -> fromRawOrderBook rawBook
+restOrderBook :: Product -> ReaderT Config IO OrderBook
+restOrderBook product = do
+    conf <- reader exchangeConf
+    rawBook <- execExchangeT conf $ getOrderBook (toId product)
+    return $ fromRawOrderBook rawBook
 
-fromRawOrderBook :: Book OrderId -> IO OrderBook
-fromRawOrderBook Book {..} = do
-    now <- getCurrentTime
-    return
-        OrderBook
-        { bookSequence = bookSequence
-        , bookBids = fromRawBookItems bookBids
-        , bookAsks = fromRawBookItems bookAsks
-        }
+fromRawOrderBook :: Book OrderId -> OrderBook
+fromRawOrderBook Book {..} =
+    OrderBook {bookSequence = bookSequence, bookBids = fromRawBookItems bookBids, bookAsks = fromRawBookItems bookAsks}
   where
     fromRawBookItems rawBookItems = Map.fromList $ map toKeyValue rawBookItems
     toKeyValue (BookItem price size orderId) = (orderId, OrderBookItem price size orderId)
