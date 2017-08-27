@@ -55,6 +55,7 @@ library
                      , http-conduit
                      , http-client
                      , http-client-tls
+                     , http-types
                      , mtl
                      , pqueue
                      , split

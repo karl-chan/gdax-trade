@@ -3,6 +3,11 @@
     margin: 0 auto;
 }
 
+.output-area .output-url {
+    margin-left: 10px;
+    font-weight: 500;
+}
+
 .gdax-docs {
     height: 80vh;
 }
@@ -19,4 +24,25 @@
 
 .fab.fab-down {
     bottom: 50px;
+}
+
+
+.row.search_bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.row.search_bar > * {
+    margin: 0 10px;
+}
+
+.row.pagination {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.row.pagination > * {
+    margin: 0 5px;
 }

@@ -6,16 +6,6 @@ pre {
     white-space: pre-wrap;
 }
 
-.flex {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.flex > * {
-    margin: 0 10px;
-}
-
 .error {
     color: red
 }
