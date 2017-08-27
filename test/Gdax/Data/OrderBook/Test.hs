@@ -1,7 +1,8 @@
 module Gdax.Data.OrderBook.Test where
 
-import           Gdax.Data.OrderBook.Internal
+import           Gdax.Data.OrderBook
 import           Gdax.Data.OrderBook.Types
+import           Gdax.Data.OrderBook.Util
 import           Gdax.Types.Product
 import           Gdax.Types.Product.Feed
 import           Gdax.Util.Config
@@ -31,43 +32,21 @@ test product productFeed config = do
 
 testImplementation :: Product -> ProductFeed -> Config -> Assertion
 testImplementation product productFeed config = do
-    feedListener <- newFeedListener productFeed >>= waitUntilFeed
-    feedListener2 <- newFeedListener productFeed >>= waitUntilFeed
-    initialBook <- runReaderT (initialiseOrderBook product feedListener) config
-    -- state variables
-    sequenceSignal <- newEmptyMVar :: IO (MVar Sequence)
-    -- async update order book
-    bookByIncrementRef <- localBook initialBook sequenceSignal product feedListener config
-    bookBySyncRef <- serverBookWithDelay syncDelay sequenceSignal product config
-    -- compare order books
-    bookByIncrement <- readMVar bookByIncrementRef
-    bookBySync <- readMVar bookBySyncRef
-    assertBool (diffBooks bookByIncrement bookBySync) (bookByIncrement == bookBySync)
-
---    forkIO . forever $ readFeed feedListener2 >>= print
-localBook :: OrderBook -> MVar Sequence -> Product -> ProductFeedListener -> Config -> IO (MVar OrderBook)
-localBook initialBook sequenceIn product productFeedListener config = do
-    bookRef <- newEmptyMVar
+    bookFeed <- runReaderT (liveOrderBookFeed product productFeed) config
+    bookFeedListener <- newFeedListener bookFeed
+    restBookRef <- newEmptyMVar
     forkIO $ do
-        let loop books = do
-                targetSeq <- tryReadMVar sequenceIn
-                case targetSeq of
-                    Nothing -> do
-                        newBook <- runReaderT (incrementOrderBook (head books) product productFeedListener) config
-                        loop (newBook : books)
-                    Just sequence -> putMVar bookRef $ fromJust $ find ((== sequence) . bookSequence) books
-        loop [initialBook]
-    return bookRef
-
-serverBookWithDelay :: NominalDiffTime -> MVar Sequence -> Product -> Config -> IO (MVar OrderBook)
-serverBookWithDelay delay sequenceOut product config = do
-    bookRef <- newEmptyMVar
-    forkIO $ do
-        sleep delay
-        book <- runReaderT (restOrderBook product) config
-        putMVar sequenceOut (bookSequence book)
-        putMVar bookRef book
-    return bookRef
+        sleep syncDelay
+        runReaderT (restOrderBook product) config >>= putMVar restBookRef
+    let loop books = do
+            book <- readFeed bookFeedListener
+            maybeRestBook <- tryReadMVar restBookRef
+            case maybeRestBook of
+                Nothing -> loop (book : books)
+                Just restBook -> do
+                    let testBook = fromJust $ find (\b -> bookSequence b == bookSequence restBook) books
+                    assertBool (diffBooks testBook restBook) (testBook == restBook)
+    loop []
 
 diffBooks :: OrderBook -> OrderBook -> String
 diffBooks book1 book2 =

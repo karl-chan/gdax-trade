@@ -1,27 +1,23 @@
 module Gdax.Util.Feed where
 
-import           BroadcastChan.Throw            (BroadcastChan, In, Out,
-                                                 newBChanListener,
-                                                 newBroadcastChan, readBChan,
-                                                 writeBChan)
+import           Control.Concurrent.STM.TChan
+import           Control.Monad.STM
 
-type Feed a = BroadcastChan In a
+type Feed a = TChan a
 
-type FeedListener a = BroadcastChan Out a
+type FeedListener a = TChan a
 
-newFeed :: IO (Feed a)
-newFeed = newBroadcastChan
+newFeed :: IO (TChan a)
+newFeed = newBroadcastTChanIO
 
 newFeedListener :: Feed a -> IO (FeedListener a)
-newFeedListener = newBChanListener
-
-waitUntilFeed :: FeedListener a -> IO (FeedListener a)
-waitUntilFeed listener = do
-    readFeed listener
-    return listener
+newFeedListener feed = do
+    feedListener <- atomically . dupTChan $ feed
+    atomically . peekTChan $ feedListener
+    return feedListener
 
 readFeed :: FeedListener a -> IO a
-readFeed = readBChan
+readFeed = atomically . readTChan
 
 writeFeed :: Feed a -> a -> IO ()
-writeFeed = writeBChan
+writeFeed feed = atomically . writeTChan feed

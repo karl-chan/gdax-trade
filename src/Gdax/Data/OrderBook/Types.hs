@@ -4,9 +4,10 @@
 
 module Gdax.Data.OrderBook.Types where
 
+import           Gdax.Util.Feed
+
 import           Coinbase.Exchange.Types.Core (OrderId, Price, Sequence, Size)
 
-import           BroadcastChan.Throw          (BroadcastChan, In, Out)
 import           Control.DeepSeq              (NFData)
 import           Data.Data                    (Data)
 import           Data.HashMap                 (Map)
@@ -28,6 +29,6 @@ data OrderBookItem = OrderBookItem
 
 type OrderBookItems = Map OrderId OrderBookItem
 
-type OrderBookFeed = BroadcastChan In OrderBook
+type OrderBookFeed = Feed OrderBook
 
-type OrderBookFeedListener = BroadcastChan Out OrderBook
+type OrderBookFeedListener = FeedListener OrderBook

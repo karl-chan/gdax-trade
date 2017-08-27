@@ -32,7 +32,7 @@ import           Coinbase.Exchange.Types.Socket     (ExchangeMessage (ChangeLimi
                                                      msgSequence, msgSide,
                                                      msgSize, msgTime)
 
-import           BroadcastChan.Throw                (readBChan)
+
 import           Control.Concurrent                 (forkIO, threadDelay)
 import           Control.Concurrent.MVar            (MVar, newMVar, readMVar,
                                                      swapMVar)

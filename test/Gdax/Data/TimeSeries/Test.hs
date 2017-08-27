@@ -26,7 +26,7 @@ test granularity product productFeed config = do
 
 testImplementation :: Granularity -> Product -> ProductFeed -> Config -> Assertion
 testImplementation granularity product productFeed config = do
-    feedListener <- newFeedListener productFeed >>= waitUntilFeed
+    feedListener <- newFeedListener productFeed
     now <- getCurrentTime
     let lastHour = addUTCTime (-3600) now
     void $ runReaderT (liveTSFeed lastHour product productFeed) config

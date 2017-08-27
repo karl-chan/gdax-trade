@@ -5,8 +5,8 @@
 module Gdax.Data.TimeSeries.Types where
 
 import           Coinbase.Exchange.Types.Core (Price (..), Size (..))
+import           Gdax.Util.Feed
 
-import           BroadcastChan.Throw          (BroadcastChan, In)
 import           Control.Concurrent           (threadDelay)
 import           Control.DeepSeq              (NFData)
 import           Data.Data                    (Data)
@@ -29,7 +29,7 @@ data Stat = Stat
 
 type TimeSeries = Map StartTime Stat
 
-type TimeSeriesFeed = BroadcastChan In TimeSeries
+type TimeSeriesFeed = Feed TimeSeries
 
 type StartTime = UTCTime
 

@@ -3,15 +3,13 @@
 module Gdax.Data.OrderBook.Internal where
 
 import           Gdax.Data.OrderBook.Types
+import           Gdax.Data.OrderBook.Util
 import           Gdax.Types.Product
 import           Gdax.Types.Product.Feed
 import           Gdax.Util.Config
 import           Gdax.Util.Feed
 import           Gdax.Util.Queue
 
-import           Coinbase.Exchange.MarketData       (getOrderBook)
-import           Coinbase.Exchange.Types            (ExchangeConf, execExchange,
-                                                     execExchangeT)
 import           Coinbase.Exchange.Types.Core       (OrderId, ProductId,
                                                      Side (Buy, Sell))
 import           Coinbase.Exchange.Types.MarketData (Book (Book),
@@ -102,29 +100,14 @@ replayMessages queue book =
 
 syncOrderBook :: MVar OrderBook -> Product -> ProductFeedListener -> IO OrderBook
 syncOrderBook restBookRef product productFeedListener = do
-    waitUntilFeed productFeedListener
     let queueUntilSynced queue = do
             exchangeMsg <- readFeed productFeedListener
             let newQueue = safeAddToQueue queue exchangeMsg product
             maybeBook <- tryReadMVar restBookRef
             case maybeBook of
-                Nothing -> queueUntilSynced newQueue
-                Just restBook -> do
-                    return $ replayMessages newQueue restBook
+                Nothing       -> queueUntilSynced newQueue
+                Just restBook -> return $ replayMessages newQueue restBook
     queueUntilSynced newExchangeMsgQueue
-
-restOrderBook :: Product -> ReaderT Config IO OrderBook
-restOrderBook product = do
-    conf <- reader exchangeConf
-    rawBook <- execExchangeT conf $ getOrderBook (toId product)
-    return $ fromRawOrderBook rawBook
-
-fromRawOrderBook :: Book OrderId -> OrderBook
-fromRawOrderBook Book {..} =
-    OrderBook {bookSequence = bookSequence, bookBids = fromRawBookItems bookBids, bookAsks = fromRawBookItems bookAsks}
-  where
-    fromRawBookItems rawBookItems = Map.fromList $ map toKeyValue rawBookItems
-    toKeyValue (BookItem price size orderId) = (orderId, OrderBookItem price size orderId)
 
 updateOrderBook :: OrderBook -> ExchangeMessage -> OrderBook
 updateOrderBook book exchangeMessage =
