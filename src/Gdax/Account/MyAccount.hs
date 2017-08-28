@@ -5,12 +5,12 @@ import           Gdax.Types.Currency
 import           Gdax.Types.Order
 import           Gdax.Types.Product
 
-import           Data.HashMap         (Map, (!))
-import qualified Data.HashMap         as Map
+import           Data.HashMap.Strict  (HashMap, (!))
+import qualified Data.HashMap.Strict  as Map
 import           Data.Maybe
 
 data MyAccount = MyAccount
-    { balances :: Map Currency Balance
+    { balances :: HashMap Currency Balance
     , orders   :: [Order]
     }
 

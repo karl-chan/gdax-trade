@@ -1,45 +1,36 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric  #-}
+
 module Gdax.Types.Product where
 
 import           Gdax.Types.Currency
 
 import           Coinbase.Exchange.Types.Core (ProductId (..))
 
+import           Data.Char
+import           Data.Hashable
 import           Data.List
 import           Data.List.Split
 import           Data.Maybe
 import           Data.String.Conversions
+import           GHC.Generics
 
 data Product =
     Pair Currency
          Currency
-    deriving (Eq)
+    deriving (Eq, Ord, Generic, Hashable)
 
 instance Show Product where
     show (Pair c1 c2) = show c1 ++ "-" ++ show c2
 
-availableProducts :: [Product]
-availableProducts =
-    [ Pair BTC USD
-    , Pair BTC GBP
-    , Pair BTC EUR
-    , Pair ETH USD
-    , Pair ETH BTC
-    , Pair ETH EUR
-    , Pair LTC USD
-    , Pair LTC BTC
-    , Pair LTC EUR
-    ]
-
-mkProduct :: Currency -> Currency -> Maybe Product
-mkProduct c1 c2 =
-    let match (Pair x y) = c1 == x && c2 == y
-    in find match availableProducts
+instance Read Product where
+    readsPrec _ str =
+        let [c1, c2] = splitOn "-" str
+            product = Pair (read $ map toUpper c1) (read $ map toUpper c2)
+        in [(product, "")]
 
 fromId :: ProductId -> Product
-fromId productId =
-    let productIdStr = (cs . unProductId) productId
-        [c1, c2] = splitOn "-" productIdStr
-    in fromJust $ mkProduct (read c1) (read c2)
+fromId = read . show
 
 toId :: Product -> ProductId
 toId product = ProductId $ cs . show $ product

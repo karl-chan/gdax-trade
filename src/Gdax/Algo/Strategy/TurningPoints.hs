@@ -3,14 +3,14 @@ where
 
 import Gdax.Data.TimeSeries.Types
 import Gdax.Data.OrderBook.Types
-import Gdax.Algo.Types
+import Gdax.Algo.Strategy.Types
 
 
 
 import Coinbase.Exchange.Types.Private
 
 
---turningPoints :: Algorithm
+--turningPoints :: Strategy
 --turningPoints series book =
 
 

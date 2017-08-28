@@ -9,13 +9,9 @@ import           Gdax.Types.Product.Feed
 import           Gdax.Util.Config
 import           Gdax.Util.Feed
 
-import           Coinbase.Exchange.Types      (ExchangeConf)
-
-import           Control.Concurrent           (forkIO)
-import           Control.Monad.Reader         (ReaderT, liftIO, runReaderT)
-import qualified Data.HashMap                 as Map
+import           Control.Monad.Reader         (liftIO, ReaderT)
+import qualified Data.HashMap.Strict          as Map
 import           Data.List
-import           Data.Ord                     (comparing)
 
 liveOrderBookFeed :: Product -> ProductFeed -> ReaderT Config IO OrderBookFeed
 liveOrderBookFeed product productFeed = do

@@ -10,36 +10,22 @@ import           Gdax.Util.Config
 import           Gdax.Util.Feed
 import           Gdax.Util.Queue
 
-import           Coinbase.Exchange.Types.Core       (OrderId, ProductId,
-                                                     Side (Buy, Sell))
-import           Coinbase.Exchange.Types.MarketData (Book (Book),
-                                                     BookItem (BookItem))
-import qualified Coinbase.Exchange.Types.MarketData as CB
-import           Coinbase.Exchange.Types.Socket     (ExchangeMessage (ChangeLimit, Done, Match, Open),
-                                                     msgMakerOrderId,
-                                                     msgMaybePrice, msgNewSize,
-                                                     msgOrderId, msgPrice,
-                                                     msgProductId,
-                                                     msgRemainingSize,
-                                                     msgSequence, msgSide,
-                                                     msgSize, msgTime)
+import           Coinbase.Exchange.Types.Core   (OrderId, Side (Buy, Sell))
+import           Coinbase.Exchange.Types.Socket (ExchangeMessage (ChangeLimit, Done, Match, Open),
+                                                 msgMakerOrderId, msgMaybePrice,
+                                                 msgNewSize, msgOrderId,
+                                                 msgPrice, msgProductId,
+                                                 msgRemainingSize, msgSequence,
+                                                 msgSide, msgSize, msgTime)
 
-import           Control.Concurrent                 (forkIO)
-import           Control.Concurrent.MVar            (MVar, newEmptyMVar,
-                                                     putMVar, tryReadMVar)
-import           Control.Exception                  (throw)
-import           Control.Monad                      (forever, void, when)
-import           Control.Monad.Reader               (MonadReader, ReaderT, ask,
-                                                     liftIO, reader, runReaderT)
-import           Data.Aeson                         (eitherDecode)
-import           Data.HashMap                       (Map)
-import qualified Data.HashMap                       as Map
-import           Data.List                          (sort)
-import           Data.Maybe                         (fromJust, fromMaybe,
-                                                     isJust, isNothing,
-                                                     maybeToList)
-import           Network.WebSockets                 (ClientApp, Connection,
-                                                     receiveData)
+import           Control.Concurrent             (forkIO)
+import           Control.Concurrent.MVar        (MVar, newEmptyMVar, putMVar,
+                                                 tryReadMVar)
+import           Control.Monad.Reader           (ReaderT, ask, liftIO,
+                                                 runReaderT)
+import qualified Data.HashMap.Strict            as Map
+import           Data.List                      (sort)
+import           Data.Maybe                     (fromMaybe)
 
 type TransformFunc = OrderBookItem -> OrderBookItem
 
@@ -71,8 +57,7 @@ incrementOrderBook book product productFeedListener = do
         loop queue = do
             let shouldSync = queueSize queue >= queueThreshold
             if shouldSync
-                then do
-                    initialiseOrderBook product productFeedListener
+                then initialiseOrderBook product productFeedListener
                 else do
                     exchangeMsg <- liftIO $ readFeed productFeedListener
                     let newQueue = safeAddToQueue queue exchangeMsg product

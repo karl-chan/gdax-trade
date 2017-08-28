@@ -1,20 +1,47 @@
 credentials:
-  coinbase_key: 1b60ec31c9b5326db6f28ebbe39084b3
-  coinbase_secret: 7e1AzBMYKup82zF1PN6yRqhRoRRG2gvifnOcrm0pR3Jmy5vm4GjkVoKMx+BU5Mj0MDYlbkF3XkyIwUWKLIEvEQ==
-  coinbase_passphrase: Pas$p4ra$3
+    coinbase_key: 1b60ec31c9b5326db6f28ebbe39084b3
+    coinbase_secret: 7e1AzBMYKup82zF1PN6yRqhRoRRG2gvifnOcrm0pR3Jmy5vm4GjkVoKMx+BU5Mj0MDYlbkF3XkyIwUWKLIEvEQ==
+    coinbase_passphrase: Pas$p4ra$3
 api:
-  granularity: 300 # 5 mins
-  mode: live
-  throttle:
-    concurrency: 3
-    data_limit: 200
-    pause_gap: 1      # 1s
-    retry_gap: 10     # 10s if rate limit exceeded
+    granularity: 300 # 5 mins
+    mode: live
+    throttle:
+        concurrency: 3
+        data_limit: 200
+        pause_gap: 1      # 1s
+        retry_gap: 10     # 10s if rate limit exceeded
 server:
-  port: 8080
-  user: kwc113
-  password: KWCh9455
+    port: 8080
+    user: kwc113
+    password: KWCh9455
 log:
-  level: debug
-
+    level: debug
+products:
+    BTC-USD:
+        taker_fee: 0
+        maker_fee: 0.0025
+    BTC-EUR:
+        taker_fee: 0
+        maker_fee: 0.0025
+    BTC-GBP:
+        taker_fee: 0
+        maker_fee: 0.0025
+    ETH-BTC:
+        taker_fee: 0.003
+        maker_fee: 0
+    ETH-EUR:
+        taker_fee: 0.003
+        maker_fee: 0
+    ETH-USD:
+        taker_fee: 0.003
+        maker_fee: 0
+    LTC-BTC:
+        taker_fee: 0.003
+        maker_fee: 0
+    LTC-EUR:
+        taker_fee: 0.003
+        maker_fee: 0
+    LTC-USD:
+        taker_fee: 0.003
+        maker_fee: 0
 

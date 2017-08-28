@@ -1,7 +1,5 @@
 module Main where
 
-import           Gdax.Data.OrderBook
-import           Gdax.Data.OrderBook.Types
 import           Gdax.Data.TimeSeries
 import           Gdax.Types.Currency
 import           Gdax.Types.Product
@@ -9,16 +7,10 @@ import           Gdax.Types.Product.Feed
 import           Gdax.Util.Config
 import           Gdax.Util.Feed
 
-import           Coinbase.Exchange.Types
-import           Coinbase.Exchange.Types.Core
-import           Control.Concurrent           (forkIO, threadDelay)
-import           Control.Concurrent.STM.TChan
-import           Control.Monad                (forever, when)
-import           Control.Monad.Reader         (runReaderT)
-import           Control.Monad.STM
-import           Data.Maybe
-import           Data.Time.Calendar           (fromGregorian)
-import           Data.Time.Clock              (UTCTime (..))
+import           Control.Monad           (forever)
+import           Control.Monad.Reader    (runReaderT)
+import           Data.Time.Calendar      (fromGregorian)
+import           Data.Time.Clock         (UTCTime (..))
 
 currencyPair :: Product
 currencyPair = Pair ETH EUR

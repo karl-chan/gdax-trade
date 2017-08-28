@@ -10,7 +10,7 @@ import           Coinbase.Exchange.Types.Core (OrderId, Price, Sequence, Size)
 
 import           Control.DeepSeq              (NFData)
 import           Data.Data                    (Data)
-import           Data.HashMap                 (Map)
+import           Data.HashMap.Strict          (HashMap)
 import           Data.Time.Clock              (UTCTime)
 import           Data.Typeable                (Typeable)
 import           GHC.Generics                 (Generic)
@@ -27,7 +27,7 @@ data OrderBookItem = OrderBookItem
     , orderId :: OrderId
     } deriving (Eq, Show, Data, Typeable, Generic, NFData)
 
-type OrderBookItems = Map OrderId OrderBookItem
+type OrderBookItems = HashMap OrderId OrderBookItem
 
 type OrderBookFeed = Feed OrderBook
 

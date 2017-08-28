@@ -3,7 +3,6 @@
 
 module Gdax.Data.TimeSeries.Internal where
 
-import           Gdax.Data.OrderBook.Types
 import           Gdax.Data.TimeSeries.Types
 import qualified Gdax.Data.TimeSeries.Util          as TS
 import           Gdax.Types.Product
@@ -14,40 +13,25 @@ import           Gdax.Util.Queue
 import           Gdax.Util.Throttle
 
 import           Coinbase.Exchange.MarketData       (getHistory)
-import           Coinbase.Exchange.Types            (ExchangeConf, execExchange)
-import           Coinbase.Exchange.Types.Core       (OrderId, Price (..),
-                                                     ProductId (..), Sequence,
-                                                     Side (Buy, Sell),
-                                                     Size (..), unPrice, unSize)
-import           Coinbase.Exchange.Types.MarketData (Book (Book),
-                                                     BookItem (BookItem),
-                                                     Candle (Candle), unClose,
-                                                     unHigh, unLow, unOpen,
-                                                     unVolume)
-import qualified Coinbase.Exchange.Types.MarketData as CB
-import           Coinbase.Exchange.Types.Socket     (ExchangeMessage (ChangeLimit, Done, Match, Open),
-                                                     msgMakerOrderId,
-                                                     msgMaybePrice, msgNewSize,
-                                                     msgOrderId, msgPrice,
+import           Coinbase.Exchange.Types            (execExchange)
+import           Coinbase.Exchange.Types.Core       (Price (..), Size (..))
+import           Coinbase.Exchange.Types.MarketData (Candle (..))
+import           Coinbase.Exchange.Types.Socket     (ExchangeMessage(Match),
+                                                     msgMakerOrderId, msgPrice,
                                                      msgSequence, msgSide,
                                                      msgSize, msgTime)
 
-
-import           Control.Concurrent                 (forkIO, threadDelay)
+import           Control.Concurrent                 (forkIO)
 import           Control.Concurrent.MVar            (MVar, newMVar, readMVar,
                                                      swapMVar)
 import           Control.Exception                  (SomeException, catch)
-import           Control.Monad                      (forever, void)
+import           Control.Monad                      (void)
 import           Control.Monad.Reader
-import           Data.List                          (head, insert, null)
-import           Data.Map                           (Map)
+import           Data.List                          (insert)
 import qualified Data.Map                           as Map
-import           Data.Maybe                         (listToMaybe, maybe)
-import           Data.String.Conversions
-import           Data.Time.Clock                    (NominalDiffTime, UTCTime,
-                                                     addUTCTime, diffUTCTime,
+import           Data.Maybe                         (maybe)
+import           Data.Time.Clock                    (addUTCTime, diffUTCTime,
                                                      getCurrentTime)
-import           Data.Time.Clock.POSIX              (posixSecondsToUTCTime)
 import           Debug.Trace
 
 processSeries :: StartTime -> Product -> ProductFeedListener -> ReaderT Config IO TimeSeriesFeed

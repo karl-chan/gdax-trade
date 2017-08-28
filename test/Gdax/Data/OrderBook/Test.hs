@@ -14,7 +14,7 @@ import           Coinbase.Exchange.Types.Core (ProductId, Sequence)
 import           Control.Concurrent           (forkIO)
 import           Control.Concurrent.MVar
 import           Control.Monad.Reader
-import qualified Data.HashMap                 as Map
+import qualified Data.HashMap.Strict                 as Map
 import           Data.List
 import           Data.Maybe
 import           Data.Time.Clock

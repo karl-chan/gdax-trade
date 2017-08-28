@@ -9,4 +9,3 @@ data Balance = Balance
     , available :: Size
     , held      :: Size
     }
-

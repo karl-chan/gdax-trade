@@ -20,7 +20,7 @@ library
                      , Gdax.Account.MyAccount
                      , Gdax.Algo.Strategy.Spread
                      , Gdax.Algo.Strategy.TurningPoints
-                     , Gdax.Algo.Types
+                     , Gdax.Algo.Strategy.Types
                      , Gdax.Data.OrderBook
                      , Gdax.Data.OrderBook.Types
                      , Gdax.Data.OrderBook.Util
@@ -57,7 +57,6 @@ library
                      , filepath
                      , happstack-server
                      , hashable
-                     , hashmap
                      , hslogger
                      , http-conduit
                      , http-client
@@ -71,19 +70,21 @@ library
                      , stm
                      , text
                      , time
+                     , unordered-containers
                      , websockets
                      , yaml
+  ghc-options:         -fwarn-unused-imports
   default-language:    Haskell2010
 
 executable gdax-trade-exe
   hs-source-dirs:      app
   main-is:             Main.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -fprof-auto
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -fwarn-unused-imports
   build-depends:       base
                      , gdax-trade
                      , coinbase-exchange
                      , aeson
-                     , hashmap
+                     , unordered-containers
                      , http-client
                      , mtl
                      , text
@@ -96,7 +97,7 @@ executable gdax-trade-exe
 executable gdax-trade-server
   hs-source-dirs:      app
   main-is:             Server.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -fprof-auto
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -fwarn-unused-imports
   build-depends:       base
                      , gdax-trade
                      , mtl
@@ -111,13 +112,13 @@ test-suite gdax-trade-test
   build-depends:       base
                      , gdax-trade
                      , coinbase-exchange
-                     , hashmap
+                     , unordered-containers
                      , mtl
                      , pqueue
                      , tasty
                      , tasty-hunit
                      , time
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -O1
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -fwarn-unused-imports
   default-language:    Haskell2010
 
 source-repository head

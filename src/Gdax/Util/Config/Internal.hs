@@ -1,6 +1,5 @@
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric  #-}
 
 module Gdax.Util.Config.Internal where
 
@@ -12,12 +11,13 @@ import           Data.Aeson                 (genericParseJSON)
 import           Data.Aeson.Types           (camelTo2, defaultOptions,
                                              fieldLabelModifier)
 import           Data.ByteString            (ByteString)
+import           Data.HashMap.Strict        (HashMap)
+import qualified Data.HashMap.Strict        as Map
 import           Data.Maybe                 (fromJust)
+import           Data.Scientific
 import           Data.Text                  (Text)
 import           Data.Time.Clock            (NominalDiffTime)
-import           Data.Yaml                  (FromJSON (..), decode, decodeFile,
-                                             parseJSON, (.:))
-import qualified Data.Yaml                  as Y
+import           Data.Yaml                  as Y
 import           GHC.Generics               (Generic)
 
 data RawConfig = RawConfig
@@ -25,6 +25,7 @@ data RawConfig = RawConfig
     , api         :: RawApiConfig
     , server      :: RawServerConfig
     , log         :: RawLogConfig
+    , products    :: HashMap String RawProductConfig
     } deriving (FromJSON, Generic)
 
 data RawCredentialsConfig = RawCredentialsConfig
@@ -58,9 +59,17 @@ data RawThrottleConfig = RawThrottleConfig
 instance FromJSON RawThrottleConfig where
     parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
 
-data RawLogConfig = RawLogConfig
+newtype RawLogConfig = RawLogConfig
     { level :: String
     } deriving (Generic, FromJSON)
 
+data RawProductConfig = RawProductConfig
+    { takerFee :: Scientific
+    , makerFee :: Scientific
+    } deriving (Generic)
+
+instance FromJSON RawProductConfig where
+    parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
+
 getRawConfig :: FilePath -> IO RawConfig
-getRawConfig path = fmap fromJust $ decodeFile path
+getRawConfig path = fromJust <$> decodeFile path
