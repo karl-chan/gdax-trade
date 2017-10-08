@@ -4,8 +4,6 @@ packages:
 - '.'
 - location: lib/gdax-haskell
   extra-dep: true
-- location:
-    git: https://github.com/merijn/broadcast-chan.git
-    commit: bab7ee9615ef741683b323d1d32c689b253567ea
+- location: lib/happstack-websockets
   extra-dep: true
-resolver: nightly-2017-08-25
+resolver: nightly-2017-10-03

@@ -1,10 +1,10 @@
 module Gdax.Data.OrderBook.Test where
 
-import           Gdax.Data.OrderBook
+import           Gdax.Util.Feed.OrderBook
 import           Gdax.Data.OrderBook.Types
 import           Gdax.Data.OrderBook.Util
 import           Gdax.Types.Product
-import           Gdax.Types.Product.Feed
+import           Gdax.Util.Feed.Gdax
 import           Gdax.Util.Config
 import           Gdax.Util.Feed
 import           Gdax.Util.Throttle
@@ -24,15 +24,15 @@ import           Test.Tasty.HUnit
 syncDelay :: NominalDiffTime
 syncDelay = 30 -- 30 seconds
 
-test :: Product -> ProductFeed -> Config -> TestTree
-test product productFeed config = do
+test :: Product -> GdaxFeed -> Config -> TestTree
+test product gdaxFeed config = do
     testGroup
         "Order Book"
-        [testCase "Check that order book matches GDAX implementation" $ testImplementation product productFeed config]
+        [testCase "Check that order book matches GDAX implementation" $ testImplementation product gdaxFeed config]
 
-testImplementation :: Product -> ProductFeed -> Config -> Assertion
-testImplementation product productFeed config = do
-    bookFeed <- runReaderT (liveOrderBookFeed product productFeed) config
+testImplementation :: Product -> GdaxFeed -> Config -> Assertion
+testImplementation product gdaxFeed config = do
+    bookFeed <- runReaderT (newOrderBookFeed gdaxFeed product) config
     bookFeedListener <- newFeedListener bookFeed
     restBookRef <- newEmptyMVar
     forkIO $ do

@@ -1,25 +1,17 @@
 module Gdax.Util.Queue where
 
-import           Gdax.Util.Feed
-
-import           Coinbase.Exchange.Socket       (subscribe)
-import           Coinbase.Exchange.Types        (ApiType (Live))
-import           Coinbase.Exchange.Types.Core   (ProductId, Sequence)
+import           Coinbase.Exchange.Types.Core   (Sequence)
 import           Coinbase.Exchange.Types.Socket (ExchangeMessage, msgSequence)
 
-import           Control.Concurrent             (forkIO)
-import           Control.Monad                  (forever, void)
-import           Data.Aeson                     (eitherDecode)
-import           Data.Either
 import qualified Data.PQueue.Prio.Min           as PQ
-import qualified Network.WebSockets             as WS
 
 type ExchangeMsgQueue = PQ.MinPQueue Sequence ExchangeMessage
 
 type DequeueFunc a = a -> ExchangeMessage -> a
 
 -- | Sync order book if queue grows too long, probably due to dropped message
-queueThreshold = 20 :: Int
+queueThreshold :: Int
+queueThreshold = 20
 
 newExchangeMsgQueue :: ExchangeMsgQueue
 newExchangeMsgQueue = PQ.empty

@@ -5,73 +5,43 @@
 
 module Gdax.Web.Page.Playground where
 
-import           Gdax.Util.Config
-import           Gdax.Util.Network
+import           Gdax.Web.Proxy
 import           Gdax.Web.Template
+import           Gdax.Web.Types
 
-import           Coinbase.Exchange.Rest
-import           Coinbase.Exchange.Types
-
-import           Control.Applicative
-import           Control.Exception
 import           Control.Monad
-import           Control.Monad.Reader
-import qualified Data.ByteString.Char8       as C
 import           Data.ByteString.Lazy.Char8  (ByteString)
-import           Data.Either
-import           Data.Maybe
-import           Data.String                 (fromString)
 import           Data.String.Conversions
-import           Happstack.Server
-import           Network.HTTP.Types
-import           System.Log.Logger
+import           Happstack.Server            hiding (DELETE, GET, POST)
 import           Text.Blaze.Html5            (dataAttribute, string,
                                               stringValue, text, (!))
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
 
+data PlaygroundContent
+    = Static { isError      :: Bool
+             , searchMethod :: SearchMethod
+             , searchUrl    :: String
+             , pagination   :: Pagination
+             , textContent  :: ByteString }
+    | Stream { socketUrl      :: String
+             , initialMessage :: String }
+
+title :: String
 title = "Playground"
 
-data PlaygroundContent = PlaygroundContent
-    { isError      :: Bool
-    , searchMethod :: String
-    , searchUrl    :: String
-    , pagination   :: PaginationOptions
-    , content      :: ByteString
-    }
-
-playground :: ServerPart Response
-playground = ok $ toResponse $ render Nothing
-
-playgroundSearch :: Config -> ServerPart Response
-playgroundSearch config = do
-    liftIO $ debugM "Playground.hs" "Handling search."
-    searchMethod <- look "search_method"
-    searchUrl <- look "search_url"
-    before <- optional $ look "before"
-    after <- optional $ look "after"
-    liftIO $ debugM "Playground.hs" $ "Received search params: " ++ searchMethod ++ ", " ++ searchUrl
-    res <- liftIO $ runReaderT (gdaxRequest searchMethod searchUrl $ PaginationOptions before after) config
-    ok $
-        toResponse $
-        render $
-        Just
-            PlaygroundContent
-            { isError = isLeft res
-            , searchMethod = searchMethod
-            , searchUrl = searchUrl
-            , pagination = either (const noPagination) fst res
-            , content = either (cs . show) snd res
-            }
+playground :: Maybe PlaygroundContent -> ServerPart Response
+playground playgroundContent = ok $ toResponse $ render playgroundContent
 
 -- Render --
 render :: Maybe PlaygroundContent -> H.Html
-render content =
+render playgroundContent =
     template title $ do
-        renderUserInputRow
-        forM_ content renderContent
-        renderGdaxDocs
-        renderFABs
+        H.div ! A.id "playground" $ do
+            renderUserInputRow
+            forM_ playgroundContent renderContent
+            renderGdaxDocs
+            renderFABs
 
 renderUserInputRow :: H.Html
 renderUserInputRow =
@@ -79,46 +49,57 @@ renderUserInputRow =
     H.div ! A.class_ "row search_bar" $ do
         H.div ! A.class_ "mdl-textfield mdl-js-textfield mdl-textfield--floating-label getmdl-select" $ do
             H.input ! A.class_ "mdl-textfield__input" ! A.type_ "text" ! A.id "search_method" ! A.name "search_method" !
-                A.value "GET" !
+                A.value (stringValue $ show GET) !
                 A.readonly "" !
                 A.tabindex "-1"
             H.label ! A.for "search_method" $
                 H.i ! A.class_ "mdl-icon-toggle__label material-icons" $ "keyboard_arrow_down"
             H.label ! A.for "search_method" ! A.class_ "mdl-textfield__label" $ "Select method"
-            H.ul ! A.for "search_method" ! A.class_ "mdl-menu mdl-menu--bottom-left mdl-js-menu" $ do
-                H.li ! A.class_ "mdl-menu__item" ! dataAttribute "val" "GET" $ "GET"
-                H.li ! A.class_ "mdl-menu__item" ! dataAttribute "val" "POST" $ "POST"
-                H.li ! A.class_ "mdl-menu__item" ! dataAttribute "val" "DELETE" $ "DELETE"
+            H.ul ! A.for "search_method" ! A.class_ "mdl-menu mdl-menu--bottom-left mdl-js-menu" $
+                forM_ [GET, POST, DELETE, STREAM] $ \method ->
+                    H.li ! A.class_ "mdl-menu__item" ! dataAttribute "val" (stringValue . show $ method) $
+                    (string . show) method
         H.div ! A.class_ "mdl-textfield mdl-js-textfield mdl-textfield--floating-label" $ do
-            H.input ! A.class_ "mdl-textfield__input" ! A.type_ "text" ! A.name "search_url" ! A.id "url_label"
+            H.input ! A.class_ "mdl-textfield__input" ! A.type_ "text" ! A.name "search_args" ! A.id "url_label"
             H.label ! A.class_ "mdl-textfield__label" ! A.for "url_label" $ string "Enter url"
         H.input ! A.class_ "mdl-button mdl-js-button mdl-button--raised mdl-button--colored mdl-js-ripple-effect " !
             A.type_ "submit" !
             A.value "Send"
 
 renderContent :: PlaygroundContent -> H.Html
-renderContent pc@PlaygroundContent {..} =
-    H.div ! A.class_ "output-area demo-card-wide mdl-card mdl-shadow--2dp" $ do
-        H.div ! A.class_ "mdl-card__title" $
-            H.h2 ! A.class_ "mdl-card__title-text" $ do
-                "Response from"
-                H.span ! A.class_ "output-url mdl-color-text--primary" $ string searchUrl
-        when (pagination /= noPagination) $ renderPagination pc
-        H.div ! A.class_ "mdl-card__supporting-text" $
-            H.pre !
-            A.class_
-                (stringValue $
-                 "output-text" ++
-                 if isError
-                     then " error"
-                     else "") $
-            (text . cs) content
+renderContent playgroundContent =
+    H.div ! A.class_ "output-area demo-card-wide mdl-card mdl-shadow--2dp" $
+    case playgroundContent of
+        Static {..} -> do
+            H.div ! A.class_ "mdl-card__title" $ do
+                H.h2 ! A.class_ "mdl-card__title-text" $ do
+                    "Response from"
+                    H.span ! A.class_ "output-url mdl-color-text--primary" $ string searchUrl
+                when (pagination /= noPagination) $ renderPagination playgroundContent
+            H.div ! A.class_ "mdl-card__supporting-text" $
+                H.pre !
+                A.class_
+                    (stringValue $
+                     "output-text" ++
+                     if isError
+                         then " error"
+                         else "") $
+                text . cs $ textContent
+        Stream {..} -> do
+            H.div ! A.class_ "mdl-card__title" $
+                H.h2 ! A.class_ "mdl-card__title-text" $ do
+                    "Response from"
+                    H.span ! A.class_ "output-url mdl-color-text--primary" $ string socketUrl
+                    string $ "with initial message: " ++ initialMessage
+            H.div ! A.class_ "mdl-card__supporting-text" $ H.pre ! A.class_ "output-text" $ return ()
+            H.input ! A.type_ "hidden" ! A.name "initial_message" ! A.value (stringValue initialMessage)
+            H.script ! A.type_ "text/javascript" ! A.defer "" ! A.src (stringValue $ jsFile "stream.js") $ return ()
 
 renderPagination :: PlaygroundContent -> H.Html
-renderPagination PlaygroundContent {..} =
+renderPagination Static {..} =
     H.form ! A.enctype "multipart/form-data" ! A.method "POST" ! A.action "/playground/search" $ do
-        H.input ! A.type_ "hidden" ! A.name "search_method" ! A.value (stringValue searchMethod)
-        H.input ! A.type_ "hidden" ! A.name "search_url" ! A.value (stringValue searchUrl)
+        H.input ! A.type_ "hidden" ! A.name "searc h_method" ! A.value (stringValue . show $ searchMethod)
+        H.input ! A.type_ "hidden" ! A.name "search_args" ! A.value (stringValue searchUrl)
         H.div ! A.class_ "row pagination" $
             -- note that before is newer, after is older
          do

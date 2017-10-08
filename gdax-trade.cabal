@@ -16,24 +16,32 @@ data-files:          config.yaml
 
 library
   hs-source-dirs:      src
+  ghc-options:         -Wall
   exposed-modules:     Gdax.Account.Balance
                      , Gdax.Account.MyAccount
+                     , Gdax.Account.MyOrder
+                     , Gdax.Algo.Action
+                     , Gdax.Algo.Cost
+                     , Gdax.Algo.Executor
+                     , Gdax.Algo.Master
                      , Gdax.Algo.Strategy.Spread
                      , Gdax.Algo.Strategy.TurningPoints
-                     , Gdax.Algo.Strategy.Types
-                     , Gdax.Data.OrderBook
+                     , Gdax.Algo.Types
                      , Gdax.Data.OrderBook.Types
                      , Gdax.Data.OrderBook.Util
-                     , Gdax.Data.TimeSeries
                      , Gdax.Data.TimeSeries.Types
                      , Gdax.Data.TimeSeries.Util
                      , Gdax.Types.Currency
-                     , Gdax.Types.Order
                      , Gdax.Types.Product
-                     , Gdax.Types.Product.Feed
+                     , Gdax.Util.Bundle
                      , Gdax.Util.Config
+                     , Gdax.Util.Config.Fees
                      , Gdax.Util.Feed
-                     , Gdax.Util.Network
+                     , Gdax.Util.Feed.Bundle
+                     , Gdax.Util.Feed.Gdax
+                     , Gdax.Util.Feed.MyAccount
+                     , Gdax.Util.Feed.OrderBook
+                     , Gdax.Util.Feed.TimeSeries
                      , Gdax.Util.Throttle
                      , Gdax.Util.Queue
                      , Gdax.Web.Server
@@ -41,8 +49,15 @@ library
                      , Gdax.Data.TimeSeries.Internal
                      , Gdax.Data.OrderBook.Internal
                      , Gdax.Util.Config.Internal
+                     , Gdax.Web.Handler.Playground
+                     , Gdax.Web.Handler.Stream
                      , Gdax.Web.Page.Playground
+                     , Gdax.Web.Page.Playground.Search
+                     , Gdax.Web.Page.Playground.Stream
+                     , Gdax.Web.Proxy
+                     , Gdax.Web.Routes
                      , Gdax.Web.Template
+                     , Gdax.Web.Types
   build-depends:       base >= 4.7 && < 5
                      , coinbase-exchange
                      , aeson
@@ -56,9 +71,9 @@ library
                      , directory
                      , filepath
                      , happstack-server
+                     , happstack-websockets
                      , hashable
                      , hslogger
-                     , http-conduit
                      , http-client
                      , http-client-tls
                      , http-types
@@ -79,25 +94,19 @@ library
 executable gdax-trade-exe
   hs-source-dirs:      app
   main-is:             Main.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -fwarn-unused-imports
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , gdax-trade
                      , coinbase-exchange
-                     , aeson
-                     , unordered-containers
-                     , http-client
                      , mtl
-                     , text
                      , time
-                     , stm
-                     , websockets
   default-language:    Haskell2010
 
 
 executable gdax-trade-server
   hs-source-dirs:      app
   main-is:             Server.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -fwarn-unused-imports
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , gdax-trade
                      , mtl
@@ -118,7 +127,7 @@ test-suite gdax-trade-test
                      , tasty
                      , tasty-hunit
                      , time
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -fwarn-unused-imports
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 
 source-repository head

@@ -10,38 +10,27 @@ api:
         data_limit: 200
         pause_gap: 1      # 1s
         retry_gap: 10     # 10s if rate limit exceeded
+bundle:
+    refresh_rate: 1       # 1s
 server:
-    port: 8080
+    default_port: 8080
     user: kwc113
     password: KWCh9455
 log:
     level: debug
-products:
-    BTC-USD:
-        taker_fee: 0
-        maker_fee: 0.0025
+fees:
     BTC-EUR:
-        taker_fee: 0
-        maker_fee: 0.0025
-    BTC-GBP:
-        taker_fee: 0
-        maker_fee: 0.0025
+        taker: 0
+        maker: 0.0025
     ETH-BTC:
-        taker_fee: 0.003
-        maker_fee: 0
+        taker: 0.003
+        maker: 0
     ETH-EUR:
-        taker_fee: 0.003
-        maker_fee: 0
-    ETH-USD:
-        taker_fee: 0.003
-        maker_fee: 0
+        taker: 0.003
+        maker: 0
     LTC-BTC:
-        taker_fee: 0.003
-        maker_fee: 0
+        taker: 0.003
+        maker: 0
     LTC-EUR:
-        taker_fee: 0.003
-        maker_fee: 0
-    LTC-USD:
-        taker_fee: 0.003
-        maker_fee: 0
-
+        taker: 0.003
+        maker: 0

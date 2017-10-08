@@ -3,29 +3,22 @@
 
 module Gdax.Util.Config.Internal where
 
-import           Paths_gdax_trade           (getDataFileName)
-
-import           Gdax.Data.TimeSeries.Types
-
-import           Data.Aeson                 (genericParseJSON)
-import           Data.Aeson.Types           (camelTo2, defaultOptions,
-                                             fieldLabelModifier)
-import           Data.ByteString            (ByteString)
-import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as Map
-import           Data.Maybe                 (fromJust)
-import           Data.Scientific
-import           Data.Text                  (Text)
-import           Data.Time.Clock            (NominalDiffTime)
-import           Data.Yaml                  as Y
-import           GHC.Generics               (Generic)
+import           Data.Aeson          (genericParseJSON)
+import           Data.Aeson.Types    (camelTo2, defaultOptions,
+                                      fieldLabelModifier)
+import           Data.HashMap.Strict (HashMap)
+import           Data.Maybe          (fromJust)
+import           Data.Text           (Text)
+import           Data.Yaml           as Y
+import           GHC.Generics        (Generic)
 
 data RawConfig = RawConfig
     { credentials :: RawCredentialsConfig
     , api         :: RawApiConfig
+    , bundle      :: RawBundleConfig
     , server      :: RawServerConfig
     , log         :: RawLogConfig
-    , products    :: HashMap String RawProductConfig
+    , fees        :: HashMap String RawFeeConfig
     } deriving (FromJSON, Generic)
 
 data RawCredentialsConfig = RawCredentialsConfig
@@ -38,16 +31,26 @@ instance FromJSON RawCredentialsConfig where
     parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
 
 data RawApiConfig = RawApiConfig
-    { granularity :: Int
+    { granularity :: Double
     , mode        :: String
     , throttle    :: RawThrottleConfig
     } deriving (FromJSON, Generic)
 
+newtype RawBundleConfig = RawBundleConfig
+    { refreshRate :: Double
+    } deriving (Generic)
+
+instance FromJSON RawBundleConfig where
+    parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
+
 data RawServerConfig = RawServerConfig
-    { port     :: Int
-    , user     :: String
-    , password :: String
-    } deriving (FromJSON, Generic)
+    { defaultPort :: Int
+    , user        :: String
+    , password    :: String
+    } deriving (Generic)
+
+instance FromJSON RawServerConfig where
+    parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
 
 data RawThrottleConfig = RawThrottleConfig
     { concurrency :: Int
@@ -63,13 +66,10 @@ newtype RawLogConfig = RawLogConfig
     { level :: String
     } deriving (Generic, FromJSON)
 
-data RawProductConfig = RawProductConfig
-    { takerFee :: Scientific
-    , makerFee :: Scientific
-    } deriving (Generic)
-
-instance FromJSON RawProductConfig where
-    parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
+data RawFeeConfig = RawFeeConfig
+    { taker :: Double
+    , maker :: Double
+    } deriving (Generic, FromJSON)
 
 getRawConfig :: FilePath -> IO RawConfig
 getRawConfig path = fromJust <$> decodeFile path

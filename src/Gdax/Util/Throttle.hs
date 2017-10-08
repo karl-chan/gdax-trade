@@ -2,11 +2,10 @@ module Gdax.Util.Throttle where
 
 import           Gdax.Data.TimeSeries.Types
 
-import           Control.Concurrent         (forkIO, threadDelay)
+import           Control.Concurrent         (threadDelay)
 import           Control.Concurrent.Async   (mapConcurrently)
-import           Control.Monad              (replicateM)
 import           Data.List                  (null, splitAt)
-import           Data.Time.Clock            (NominalDiffTime)
+import           Data.Time.Clock
 
 throttle :: Int -> NominalDiffTime -> [IO a] -> IO [a]
 throttle concurrency interval tasks =
@@ -21,4 +20,4 @@ throttle concurrency interval tasks =
     in loop tasks []
 
 sleep :: NominalDiffTime -> IO ()
-sleep gap = threadDelay $ (floor . (* 1e6) . toSeconds) gap
+sleep seconds = threadDelay $ floor . (*1e6) $ seconds

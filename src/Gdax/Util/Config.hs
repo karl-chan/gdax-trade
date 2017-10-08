@@ -1,37 +1,29 @@
-{-# LANGUAGE DeriveAnyClass        #-}
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Gdax.Util.Config where
 
 import           Gdax.Data.TimeSeries.Types
-import           Gdax.Types.Product
+import           Gdax.Util.Config.Fees
 import           Gdax.Util.Config.Internal
 
 import           Coinbase.Exchange.Types
 
-import           Control.Concurrent         (forkIO, threadDelay)
-import           Control.Concurrent.Async   (mapConcurrently)
-import           Control.Exception
-import           Control.Monad              (replicateM)
 import           Data.Char
 import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as Map
-import           Data.Scientific
+import qualified Data.HashMap.Strict        as HM
+import           Data.Maybe
 import           Data.Text.Encoding         (encodeUtf8)
 import           Data.Time.Clock            (NominalDiffTime)
-import           GHC.Generics               (Generic)
 import           Happstack.Server           (Conf (..), nullConf)
-import           Network.HTTP.Client
+import           Network.HTTP.Client        hiding (port)
 import           Network.HTTP.Client.TLS
-import           Prelude                    hiding (log)
+import           Prelude                    hiding (log, product)
+import           System.Environment
 import           System.IO                  (stdout)
 import           System.Log.Formatter       (simpleLogFormatter)
 import           System.Log.Handler         (setFormatter)
 import           System.Log.Handler.Simple  (streamHandler)
-import           System.Log.Logger          (Priority (..), debugM,
-                                             rootLoggerName, setHandlers,
+import           System.Log.Logger          (rootLoggerName, setHandlers,
                                              setLevel, updateGlobalLogger)
 
 type ServerConf = Conf
@@ -46,35 +38,32 @@ data Config = Config
     , apiThrottleDataLimit   :: Int
     , apiThrottlePauseGap    :: NominalDiffTime
     , apiThrottleRetryGap    :: NominalDiffTime
+    , bundleRefreshRate      :: NominalDiffTime
     , serverConf             :: ServerConf
     , serverUser             :: String
     , serverPassword         :: String
-    , productsConf           :: HashMap Product ProductConf
-    }
-
-data ProductConf = ProductConf
-    { product  :: Product
-    , makerFee :: Scientific
-    , takerFee :: Scientific
+    , feesConf               :: FeesConf
     }
 
 getGlobalConfig :: IO Config
 getGlobalConfig = do
     rawConfig <- getRawConfig location
     exchangeConf <- toExchangeConf (toRunMode $ api rawConfig) (credentials rawConfig)
+    serverConf <- toServerConf $ server rawConfig
     initLogging $ (level . log) rawConfig
     return
         Config
         { exchangeConf = exchangeConf
-        , apiGranularity = (fromIntegral . granularity . api) rawConfig
+        , apiGranularity = (realToFrac . granularity . api) rawConfig
         , apiThrottleConcurrency = (concurrency . throttle . api) rawConfig
         , apiThrottleDataLimit = (dataLimit . throttle . api) rawConfig
-        , apiThrottlePauseGap = (fromRational . realToFrac . pauseGap . throttle . api) rawConfig
-        , apiThrottleRetryGap = (fromRational . realToFrac . retryGap . throttle . api) rawConfig
-        , serverConf = (toServerConf . server) rawConfig
+        , apiThrottlePauseGap = (realToFrac . pauseGap . throttle . api) rawConfig
+        , apiThrottleRetryGap = (realToFrac . retryGap . throttle . api) rawConfig
+        , bundleRefreshRate = (realToFrac . refreshRate . bundle) rawConfig
+        , serverConf = serverConf
         , serverUser = (user . server) rawConfig
         , serverPassword = (password . server) rawConfig
-        , productsConf = (toProductsConf . products) rawConfig
+        , feesConf = (toFeesConf . fees) rawConfig
         }
 
 toRunMode :: RawApiConfig -> ApiType
@@ -93,15 +82,17 @@ toExchangeConf runMode RawCredentialsConfig {..} = do
         Left err    -> error err
         Right token -> return $ ExchangeConf mgr (Just token) runMode
 
-toServerConf :: RawServerConfig -> ServerConf
-toServerConf RawServerConfig {..} = nullConf {port = port}
+toServerConf :: RawServerConfig -> IO ServerConf
+toServerConf RawServerConfig {..} = do
+    envPort <- lookupEnv "PORT"
+    return $ nullConf {port = maybe defaultPort read envPort}
 
-toProductsConf :: HashMap String RawProductConfig -> HashMap Product ProductConf
-toProductsConf productDetails =
-    let transform (k, RawProductConfig {..}) =
+toFeesConf :: HashMap String RawFeeConfig -> FeesConf
+toFeesConf rawFeesConf =
+    let transform (k, RawFeeConfig {..}) =
             let product = read k
-            in (product, ProductConf product makerFee takerFee)
-    in Map.fromList . map transform . Map.toList $ productDetails
+            in (product, (maker, taker))
+    in HM.fromList . map transform . HM.toList $ rawFeesConf
 
 initLogging :: String -> IO ()
 initLogging s = do

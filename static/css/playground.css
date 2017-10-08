@@ -1,14 +1,14 @@
-.output-area {
+#playground .output-area {
     width: 80%;
     margin: 0 auto;
 }
 
-.output-area .output-url {
-    margin-left: 10px;
+#playground .output-area .output-url {
+    margin: 0 10px;
     font-weight: 500;
 }
 
-.gdax-docs {
+#playground .gdax-docs {
     height: 80vh;
 }
 

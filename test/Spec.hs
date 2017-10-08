@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import qualified Gdax.Data.OrderBook.Test     as OrderBook
-import           Gdax.Data.TimeSeries
+import           Gdax.Util.Feed.TimeSeries
 import qualified Gdax.Data.TimeSeries.Test    as TimeSeries
 import           Gdax.Data.TimeSeries.Types
 import           Gdax.Types.Currency
 import           Gdax.Types.Product
-import           Gdax.Types.Product.Feed
+import           Gdax.Util.Feed.Gdax
 import           Gdax.Util.Config
 
 import           Coinbase.Exchange.Types
@@ -23,9 +23,9 @@ testProduct = Pair BTC USD
 main :: IO ()
 main = do
     testConfig <- getGlobalConfig
-    testFeed <- newProductFeed [testProduct]
+    testFeed <- runReaderT (newGdaxFeed [testProduct]) testConfig
     defaultMain $ tests testProduct testFeed testConfig
 
-tests :: Product -> ProductFeed -> Config -> TestTree
-tests product productFeed config = testGroup "All tests" [OrderBook.test product productFeed config]
---        TimeSeries.test granularity product productFeed config]
+tests :: Product -> GdaxFeed -> Config -> TestTree
+tests product gdaxFeed config = testGroup "All tests" [OrderBook.test product gdaxFeed config]
+--        TimeSeries.test granularity product gdaxFeed config]

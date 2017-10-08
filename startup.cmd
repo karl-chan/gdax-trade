@@ -1,1 +1,0 @@
-stack build && stack exec gdax-trade-server

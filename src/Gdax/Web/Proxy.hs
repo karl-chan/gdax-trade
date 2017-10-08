@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-module Gdax.Util.Network where
+module Gdax.Web.Proxy where
 
 import           Gdax.Util.Config
+import           Gdax.Web.Types
 
 import           Coinbase.Exchange.Rest
 import           Coinbase.Exchange.Types
@@ -16,28 +17,19 @@ import           Data.Conduit.Binary
 import           Data.List
 import           Data.Maybe
 import           Data.String.Conversions
-import           Data.Text                  (Text)
-import           Network.HTTP.Conduit
-import           Network.HTTP.Types
+import           Network.HTTP.Client
 import           System.Log.Logger
 
-data PaginationOptions = PaginationOptions
+data Pagination = Pagination
     { before :: Maybe String
     , after  :: Maybe String
     } deriving (Eq, Show)
 
-noPagination :: PaginationOptions
-noPagination = PaginationOptions {before = Nothing, after = Nothing}
+noPagination :: Pagination
+noPagination = Pagination {before = Nothing, after = Nothing}
 
-cbBefore :: HeaderName
-cbBefore = "CB-BEFORE"
-
-cbAfter :: HeaderName
-cbAfter = "CB-AFTER"
-
-gdaxRequest ::
-       String -> String -> PaginationOptions -> ReaderT Config IO (Either SomeException (PaginationOptions, ByteString))
-gdaxRequest method url PaginationOptions {..} = do
+gdaxRequest :: SearchMethod -> String -> Pagination -> ReaderT Config IO (Either SomeException (Pagination, ByteString))
+gdaxRequest method url Pagination {..} = do
     conf <- reader exchangeConf
     let mkParam name param = name ++ "=" ++ param
         queryParams =
@@ -47,14 +39,12 @@ gdaxRequest method url PaginationOptions {..} = do
                 then "&"
                 else "?"
         urlWithParams = url ++ appender ++ queryParams
-
-    liftIO $ debugM "Network.hs" $ "Making " ++ (cs method) ++ " request to url: " ++ urlWithParams
+    liftIO $ debugM "Network.hs" $ "Making " ++ show method ++ " request to url: " ++ urlWithParams
     liftIO . try $
         execExchange conf $ do
-            res <- coinbaseRequest (cs method) True urlWithParams voidBody
+            res <- coinbaseRequest (cs . show $ method) True urlWithParams voidBody
             let headers = responseHeaders res
             body <- responseBody res $$+- sinkLbs
             let paginationResults =
-                    PaginationOptions
-                    {before = fmap cs $ lookup cbBefore headers, after = fmap cs $ lookup cbAfter headers}
+                    Pagination {before = cs <$> lookup "CB-BEFORE" headers, after = cs <$> lookup "CB-AFTER" headers}
             return (paginationResults, body)
