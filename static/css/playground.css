@@ -1,15 +1,36 @@
-#playground .output-area {
-    width: 80%;
-    margin: 0 auto;
+#playground .tabs {
+    display: flex;
+    padding-left: 10%;
+    margin-bottom: 10px;
 }
 
-#playground .output-area .output-url {
+#playground .tabs > * {
+    margin-right: 10px;
+}
+
+#playground .output-card {
+    width: 80%;
+    margin: 0 auto;
+    overflow-y: auto;
+}
+
+#playground .output-card .output-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#playground .output-card .output-url {
     margin: 0 10px;
     font-weight: 500;
 }
 
-#playground .gdax-docs {
-    height: 80vh;
+#playground .output-card .pagination_form {
+    margin: 0;
+}
+
+#playground .docs {
+    height: 100%;
 }
 
 .fab {
@@ -19,10 +40,6 @@
 }
 
 .fab.fab-up {
-    bottom: 120px;
-}
-
-.fab.fab-down {
     bottom: 50px;
 }
 

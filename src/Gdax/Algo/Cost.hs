@@ -6,14 +6,14 @@ module Gdax.Algo.Cost where
 
 import           Gdax.Algo.Action
 import           Gdax.Algo.Types
-import           Gdax.Data.OrderBook.Types    as BK
-import           Gdax.Data.OrderBook.Util
-import           Gdax.Util.Bundle
+import           Gdax.Types.Amount
+import           Gdax.Types.Bundle
+import           Gdax.Types.OrderBook         as Book
+import           Gdax.Types.OrderBook.Util
 import           Gdax.Util.Config
 import           Gdax.Util.Config.Fees
-import           Gdax.Util.Feed.OrderBook
 
-import           Coinbase.Exchange.Types.Core (Price, Side (Buy, Sell), Size)
+import           Coinbase.Exchange.Types.Core (Price, Side (Buy, Sell))
 
 import           Control.Monad.Reader
 import           Prelude                      hiding (product)
@@ -22,7 +22,7 @@ calculateCost :: CostCalculator
 calculateCost action = do
     bundle <- ask
     feesConfig <- reader $ feesConf . config
-    let book = getOrderBook bundle $ product action
+    let book = orderBook (product action) bundle
     return $ platformCharge action feesConfig + spreadCost action book
 
 -- Cost of currency conversion imposed by platform, as percentage
@@ -47,21 +47,27 @@ spreadCost _ _ = 0
 -- Total price required to buy size from order book items
 totalCost :: [OrderBookItem] -> Amount -> Price
 totalCost = totalCost' 0
-  where
-    totalCost' _ [] _ = error "Order book not large enough to handle order amount"
-    totalCost' acc (x:xs) remAmount =
-        let canComplete =
-                case remAmount of
-                    Left remSize -> BK.size x >= remSize
-                    Right remFunds -> price x * (realToFrac . BK.size) x >= remFunds
-        in if canComplete
-               then acc +
-                    case remAmount of
-                        Left remSize   -> realToFrac remSize * price x
-                        Right remFunds -> remFunds
-               else let inc = (realToFrac . BK.size) x * price x
-                        newRemAmount =
-                            case remAmount of
-                                Left remSize -> Left $ remSize - BK.size x
-                                Right remFunds -> Right $ remFunds - inc
-                    in totalCost' (acc + inc) xs newRemAmount
+
+totalCost' :: Price -> [OrderBookItem] -> Amount -> Price
+totalCost' cost [] _ = cost -- Base case
+totalCost' acc (bkItem:items) remAmount =
+    let canComplete =
+            case remAmount of
+                Size remSize -> Book.size bkItem >= remSize
+                Price remFunds -> price bkItem * (realToFrac . Book.size) bkItem >= remFunds
+    in if canComplete
+           then let inc =
+                        case remAmount of
+                            Size remSize -> realToFrac remSize * price bkItem
+                            Price remFunds -> remFunds
+                    zero =
+                        case remAmount of
+                            Size {}  -> Size 0
+                            Price {} -> Price 0
+                in totalCost' (acc + inc) [] zero
+           else let inc = (realToFrac . Book.size) bkItem * price bkItem
+                    newRemAmount =
+                        case remAmount of
+                            Size remSize -> Size $ remSize - Book.size bkItem
+                            Price remFunds -> Price $ remFunds - inc
+                in totalCost' (acc + inc) items newRemAmount

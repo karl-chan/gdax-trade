@@ -1,17 +1,19 @@
-{-# LANGUAGE OverloadedStrings #-}
+module Main where
 
-import qualified Gdax.Data.OrderBook.Test     as OrderBook
-import           Gdax.Util.Feed.TimeSeries
-import qualified Gdax.Data.TimeSeries.Test    as TimeSeries
-import           Gdax.Data.TimeSeries.Types
+import           Gdax.Feed.Gdax
+import qualified Gdax.Feed.OrderBook.Test     as OrderBook
+import           Gdax.Feed.TimeSeries
+import qualified Gdax.Feed.TimeSeries.Test    as TimeSeries
+import           Gdax.Feed.TimeSeries.Types
 import           Gdax.Types.Currency
 import           Gdax.Types.Product
-import           Gdax.Util.Feed.Gdax
+import           Gdax.Types.TimeSeries
 import           Gdax.Util.Config
 
 import           Coinbase.Exchange.Types
 import           Coinbase.Exchange.Types.Core
 
+import           Control.Monad.Reader
 import           Test.Tasty
 
 granularity :: Granularity

@@ -1,12 +1,16 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Gdax.Account.MyOrder where
 
 import           Gdax.Algo.Action
+import           Gdax.Types.Product
 
-import           Coinbase.Exchange.Types.Core   hiding (Limit, Market, Open)
+import           Coinbase.Exchange.Types.Core hiding (Limit, Market, Open)
+
+import           Prelude                      hiding (product)
 
 data MyOrder = MyOrder
     { orderId :: OrderId
     , action  :: Action
-    }
+    } deriving (Show)
+
+getProduct :: MyOrder -> Product
+getProduct = product . action

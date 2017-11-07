@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
@@ -11,26 +12,33 @@ import           Coinbase.Exchange.Types
 
 import           Control.Exception
 import           Control.Monad.Reader
-import           Data.ByteString.Lazy.Char8 (ByteString)
+import           Data.ByteString.Lazy    (ByteString)
 import           Data.Conduit
 import           Data.Conduit.Binary
 import           Data.List
 import           Data.Maybe
 import           Data.String.Conversions
+import           Gdax.Util.Logger
 import           Network.HTTP.Client
-import           System.Log.Logger
+import           System.CPUTime
 
-data Pagination = Pagination
-    { before :: Maybe String
-    , after  :: Maybe String
-    } deriving (Eq, Show)
+type Sandbox = Bool
 
-noPagination :: Pagination
-noPagination = Pagination {before = Nothing, after = Nothing}
+data SearchResponse
+    = SearchError SomeException
+    | SearchResponse { body            :: ByteString
+                     , pagination      :: PaginationOptions
+                     , timeTakenMillis :: Double }
 
-gdaxRequest :: SearchMethod -> String -> Pagination -> ReaderT Config IO (Either SomeException (Pagination, ByteString))
-gdaxRequest method url Pagination {..} = do
-    conf <- reader exchangeConf
+noPagination :: PaginationOptions
+noPagination = PaginationOptions {before = Nothing, after = Nothing}
+
+gdaxRequest :: SearchMethod -> String -> PaginationOptions -> Sandbox -> ReaderT Config IO SearchResponse
+gdaxRequest method url PaginationOptions {..} sandbox = do
+    conf <-
+        if sandbox
+            then reader sandboxExchangeConf
+            else reader liveExchangeConf
     let mkParam name param = name ++ "=" ++ param
         queryParams =
             intercalate "&" $ map (mkParam "before") (maybeToList before) ++ map (mkParam "after") (maybeToList after)
@@ -38,13 +46,21 @@ gdaxRequest method url Pagination {..} = do
             if '?' `elem` url
                 then "&"
                 else "?"
-        urlWithParams = url ++ appender ++ queryParams
-    liftIO $ debugM "Network.hs" $ "Making " ++ show method ++ " request to url: " ++ urlWithParams
-    liftIO . try $
+        urlWithParams =
+            url ++
+            if null queryParams
+                then ""
+                else appender ++ queryParams
+    logDebug $ "Making " ++ show method ++ " request to url: " ++ urlWithParams
+    liftIO . handle (return . SearchError) $
         execExchange conf $ do
+            startTime <- liftIO getCPUTime
             res <- coinbaseRequest (cs . show $ method) True urlWithParams voidBody
-            let headers = responseHeaders res
+            endTime <- liftIO getCPUTime
+            let timeTakenMillis = realToFrac (endTime - startTime) * 1e-9 :: Double
+                headers = responseHeaders res
             body <- responseBody res $$+- sinkLbs
             let paginationResults =
-                    Pagination {before = cs <$> lookup "CB-BEFORE" headers, after = cs <$> lookup "CB-AFTER" headers}
-            return (paginationResults, body)
+                    PaginationOptions
+                    {before = cs <$> lookup "CB-BEFORE" headers, after = cs <$> lookup "CB-AFTER" headers}
+            return SearchResponse {pagination = paginationResults, body = body, timeTakenMillis = timeTakenMillis}

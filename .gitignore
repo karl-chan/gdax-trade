@@ -1,3 +1,5 @@
 .stack-work/
 .ideaHaskellLib/
 .idea/
+.vscode/
+log.txt

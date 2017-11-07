@@ -1,5 +1,6 @@
 module Gdax.Algo.Action where
 
+import           Gdax.Types.Amount
 import           Gdax.Types.Product
 
 import           Coinbase.Exchange.Types.Core (OrderId, Price, Side, Size)
@@ -17,5 +18,4 @@ data Action
            , stopPrice :: Price
            , amount    :: Amount }
     | Cancel OrderId
-
-type Amount = Either Size Price
+    deriving (Show)

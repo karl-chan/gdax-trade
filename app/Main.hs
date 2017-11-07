@@ -1,31 +1,19 @@
 module Main where
 
+import           Gdax.Algo.Master
 import           Gdax.Types.Currency
 import           Gdax.Types.Product
 import           Gdax.Util.Config
-import           Gdax.Util.Feed
-import           Gdax.Util.Feed.Gdax
-import           Gdax.Util.Feed.TimeSeries
+import           Gdax.Util.Logger
+import           Gdax.Util.Time
 
-import           Control.Monad             (forever)
-import           Control.Monad.Reader      (runReaderT)
-import           Data.Time.Calendar        (fromGregorian)
-import           Data.Time.Clock           (UTCTime (..))
-
-currencyPair :: Product
-currencyPair = Pair ETH EUR
-
-startTime :: UTCTime
-startTime = UTCTime (fromGregorian 2017 8 1) 0
+import           Control.Monad.Reader
+import           Data.Time.Clock
 
 main :: IO ()
 main = do
-  config <- getGlobalConfig
-  gdaxFeed <- runReaderT (newGdaxFeed [currencyPair]) config
---    bookFeed <- newOrderBookFeed currencyPair conf gdaxFeed
-  tsFeed <-
-    runReaderT (newTimeSeriesFeed gdaxFeed startTime currencyPair) config
-  tsListener <- newFeedListener tsFeed
-  forever $ do
-    ts <- readFeed tsListener
-    return ()
+    config <- getGlobalConfig
+    withGlobalLogging (logConf config) $ do
+        now <- getCurrentTime
+        let startTime = addUTCTime (-day) now
+        runReaderT (master [Pair ETH EUR] startTime) config

@@ -3,11 +3,11 @@ module Gdax.Util.Config.Fees where
 import           Data.HashMap.Strict (HashMap, (!))
 import           Gdax.Types.Product
 
-import           Prelude             hiding (product)
+type Fee = Double
 
-type MakerFee = Double
+type MakerFee = Fee
 
-type TakerFee = Double
+type TakerFee = Fee
 
 type FeesConf = HashMap Product (MakerFee, TakerFee)
 

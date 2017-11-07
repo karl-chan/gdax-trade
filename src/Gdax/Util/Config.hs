@@ -2,102 +2,110 @@
 
 module Gdax.Util.Config where
 
-import           Gdax.Data.TimeSeries.Types
+import           Gdax.Types.TimeSeries
+import           Gdax.Util.Config.Env
 import           Gdax.Util.Config.Fees
-import           Gdax.Util.Config.Internal
+import           Gdax.Util.Config.Log
+import           Gdax.Util.Config.Yaml
 
 import           Coinbase.Exchange.Types
 
 import           Data.Char
-import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as HM
+import           Data.HashMap.Strict     (HashMap)
+import qualified Data.HashMap.Strict     as HM
 import           Data.Maybe
-import           Data.Text.Encoding         (encodeUtf8)
-import           Data.Time.Clock            (NominalDiffTime)
-import           Happstack.Server           (Conf (..), nullConf)
-import           Network.HTTP.Client        hiding (port)
+import           Data.Time.Clock         (NominalDiffTime)
+import           Happstack.Server        as H (Conf (..), nullConf)
+import           Network.HTTP.Client     hiding (port)
 import           Network.HTTP.Client.TLS
-import           Prelude                    hiding (log, product)
-import           System.Environment
-import           System.IO                  (stdout)
-import           System.Log.Formatter       (simpleLogFormatter)
-import           System.Log.Handler         (setFormatter)
-import           System.Log.Handler.Simple  (streamHandler)
-import           System.Log.Logger          (rootLoggerName, setHandlers,
-                                             setLevel, updateGlobalLogger)
+import           Prelude                 hiding (log, product)
 
 type ServerConf = Conf
 
-location :: FilePath
-location = "config.yaml"
-
 data Config = Config
     { exchangeConf           :: ExchangeConf
+    , liveExchangeConf       :: ExchangeConf
+    , sandboxExchangeConf    :: ExchangeConf
+    , apiDecimalPlaces       :: Int
     , apiGranularity         :: Granularity
-    , apiThrottleConcurrency :: Int
+    , apiThrottleParallelism :: Int
     , apiThrottleDataLimit   :: Int
-    , apiThrottlePauseGap    :: NominalDiffTime
+    , apiThrottleInterval    :: NominalDiffTime
     , apiThrottleRetryGap    :: NominalDiffTime
     , bundleRefreshRate      :: NominalDiffTime
     , serverConf             :: ServerConf
-    , serverUser             :: String
-    , serverPassword         :: String
+    , serverCredentials      :: Maybe ServerCredentials
     , feesConf               :: FeesConf
+    , logConf                :: LogConfig
+    }
+
+data ServerCredentials = ServerCredentials
+    { username :: String
+    , password :: String
     }
 
 getGlobalConfig :: IO Config
 getGlobalConfig = do
-    rawConfig <- getRawConfig location
-    exchangeConf <- toExchangeConf (toRunMode $ api rawConfig) (credentials rawConfig)
-    serverConf <- toServerConf $ server rawConfig
-    initLogging $ (level . log) rawConfig
+    envConfig <- getEnvConfig
+    yamlConfig <- getYamlConfig
+    liveExchangeConf <- toExchangeConf Live envConfig
+    sandboxExchangeConf <- toExchangeConf Sandbox envConfig
+    serverConf <- toServerConf $ server envConfig
+    let exchangeConf =
+            case map toLower (mode . api $ yamlConfig) of
+                "live" -> liveExchangeConf
+                _      -> sandboxExchangeConf
+        serverCredentials = toServerCredentials $ server envConfig
     return
         Config
         { exchangeConf = exchangeConf
-        , apiGranularity = (realToFrac . granularity . api) rawConfig
-        , apiThrottleConcurrency = (concurrency . throttle . api) rawConfig
-        , apiThrottleDataLimit = (dataLimit . throttle . api) rawConfig
-        , apiThrottlePauseGap = (realToFrac . pauseGap . throttle . api) rawConfig
-        , apiThrottleRetryGap = (realToFrac . retryGap . throttle . api) rawConfig
-        , bundleRefreshRate = (realToFrac . refreshRate . bundle) rawConfig
+        , liveExchangeConf = liveExchangeConf
+        , sandboxExchangeConf = sandboxExchangeConf
+        , apiDecimalPlaces = (decimalPlaces . api) yamlConfig
+        , apiGranularity = (realToFrac . granularity . api) yamlConfig
+        , apiThrottleParallelism = (parallelism . throttle . api) yamlConfig
+        , apiThrottleDataLimit = (dataLimit . throttle . api) yamlConfig
+        , apiThrottleInterval = (realToFrac . interval . throttle . api) yamlConfig
+        , apiThrottleRetryGap = (realToFrac . retryGap . throttle . api) yamlConfig
+        , bundleRefreshRate = (realToFrac . refreshRate . bundle) yamlConfig
         , serverConf = serverConf
-        , serverUser = (user . server) rawConfig
-        , serverPassword = (password . server) rawConfig
-        , feesConf = (toFeesConf . fees) rawConfig
+        , serverCredentials = serverCredentials
+        , feesConf = (toFeesConf . fees) yamlConfig
+        , logConf = (toLogConf . log) yamlConfig
         }
 
-toRunMode :: RawApiConfig -> ApiType
-toRunMode RawApiConfig {..} =
+toRunMode :: YamlApiConfig -> ApiType
+toRunMode YamlApiConfig {..} =
     case map toLower mode of
         "live" -> Live
         _      -> Sandbox
 
-toExchangeConf :: ApiType -> RawCredentialsConfig -> IO ExchangeConf
-toExchangeConf runMode RawCredentialsConfig {..} = do
-    let key = encodeUtf8 coinbaseKey
-        secret = encodeUtf8 coinbaseSecret
-        passphrase = encodeUtf8 coinbasePassphrase
+toExchangeConf :: ApiType -> EnvConfig -> IO ExchangeConf
+toExchangeConf apiType EnvConfig {..} = do
     mgr <- newManager tlsManagerSettings
+    let EnvCredentialsConfig {..} =
+            case apiType of
+                Live    -> liveCredentials
+                Sandbox -> sandboxCredentials
     case mkToken key secret passphrase of
         Left err    -> error err
-        Right token -> return $ ExchangeConf mgr (Just token) runMode
+        Right token -> return $ ExchangeConf mgr (Just token) apiType
 
-toServerConf :: RawServerConfig -> IO ServerConf
-toServerConf RawServerConfig {..} = do
-    envPort <- lookupEnv "PORT"
-    return $ nullConf {port = maybe defaultPort read envPort}
+toServerConf :: EnvServerConfig -> IO ServerConf
+toServerConf EnvServerConfig {..} = return nullConf {H.port = port}
 
-toFeesConf :: HashMap String RawFeeConfig -> FeesConf
+toServerCredentials :: EnvServerConfig -> Maybe ServerCredentials
+toServerCredentials EnvServerConfig {..} =
+    if isNothing maybeUsername || isNothing maybePassword
+        then Nothing
+        else Just $ ServerCredentials (fromJust maybeUsername) (fromJust maybePassword)
+
+toFeesConf :: HashMap String YamlFeeConfig -> FeesConf
 toFeesConf rawFeesConf =
-    let transform (k, RawFeeConfig {..}) =
+    let transform (k, YamlFeeConfig {..}) =
             let product = read k
             in (product, (maker, taker))
     in HM.fromList . map transform . HM.toList $ rawFeesConf
 
-initLogging :: String -> IO ()
-initLogging s = do
-    let logLevel = read $ map toUpper s
-    stdOutHandler <-
-        streamHandler stdout logLevel >>= \lh ->
-            return $ setFormatter lh (simpleLogFormatter "[$loggername:$time] $msg")
-    updateGlobalLogger rootLoggerName (setLevel logLevel . setHandlers [stdOutHandler])
+toLogConf :: YamlLogConfig -> LogConfig
+toLogConf YamlLogConfig {..} = LogConfig {logFile = Nothing, enableStderr = True, logLevel = parseLogLevel level}

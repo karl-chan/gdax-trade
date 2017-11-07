@@ -5,15 +5,15 @@ module Gdax.Account.MyAccount where
 import           Gdax.Account.Balance
 import           Gdax.Account.MyOrder
 import           Gdax.Algo.Action
+import           Gdax.Types.Amount
 import           Gdax.Types.Currency          as C
 import           Gdax.Types.Product           as P
 import           Gdax.Util.Config
-import           Gdax.Util.Feed
 
 import           Coinbase.Exchange.Private    hiding (orderId)
-import qualified Coinbase.Exchange.Private as CB
+import qualified Coinbase.Exchange.Private    as CB
 import           Coinbase.Exchange.Types
-import           Coinbase.Exchange.Types.Core hiding (Limit)
+import           Coinbase.Exchange.Types.Core hiding (Limit, Price, Size)
 
 import           Control.Monad.Reader
 import           Data.HashMap.Strict          (HashMap, (!))
@@ -22,14 +22,16 @@ import qualified Data.HashMap.Strict          as HM
 data MyAccount = MyAccount
     { balances :: HashMap Currency Balance
     , orders   :: HashMap OrderId MyOrder
-    }
+    } deriving (Show)
 
-type MyAccountFeed = Feed MyAccount
+getBalance :: Currency -> MyAccount -> Balance
+getBalance currency account = balances account ! currency
 
-type MyAccountFeedListener = FeedListener MyAccount
+findOrder :: MyAccount -> OrderId -> Maybe MyOrder
+findOrder account orderId = HM.lookup orderId $ orders account
 
-getBalance :: Currency -> MyAccount -> Double
-getBalance currency account = total $ balances account ! currency
+getOrders :: Product -> MyAccount -> HashMap OrderId MyOrder
+getOrders p account = HM.filter (\order -> getProduct order == p) (orders account)
 
 initAccount :: ReaderT Config IO MyAccount
 initAccount = do
@@ -72,8 +74,8 @@ initOrders = do
                 StopOrder {..} ->
                     let toAmount sizeOrFunds =
                             case sizeOrFunds of
-                                Left size        -> Left size
-                                Right (_, funds) -> Right $ realToFrac funds
+                                Left size        -> Size size
+                                Right (_, funds) -> Price $ realToFrac funds
                     in MyOrder
                        { orderId = CB.orderId order
                        , action =

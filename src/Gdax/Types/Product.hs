@@ -1,24 +1,36 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE RecordWildCards    #-}
 
 module Gdax.Types.Product where
 
-import           Gdax.Types.Currency
+import           Gdax.Types.Currency          hiding (safeRead)
 
 import           Coinbase.Exchange.Types.Core (ProductId (..))
 
 import           Control.DeepSeq              (NFData)
 import           Data.Char
 import           Data.Data                    (Data)
+import           Data.Either.Combinators
 import           Data.Hashable
 import           Data.List.Split
 import           Data.String.Conversions
 import           GHC.Generics
-import           Prelude                      hiding (product)
+import           Text.Read
 
 allProducts :: [Product]
-allProducts = [Pair BTC EUR, Pair ETH BTC, Pair ETH EUR, Pair LTC BTC, Pair LTC EUR]
+allProducts =
+    [ Pair BTC USD
+    , Pair BTC GBP
+    , Pair BTC EUR
+    , Pair ETH USD
+    , Pair ETH BTC
+    , Pair ETH EUR
+    , Pair LTC USD
+    , Pair LTC BTC
+    , Pair LTC EUR
+    ]
 
 data Product =
     Pair Currency
@@ -30,18 +42,44 @@ instance Show Product where
 
 instance Read Product where
     readsPrec _ str =
-        let [c1, c2] = splitOn "-" $ map toUpper str
-        in [(mkProduct (read c1) (read c2), "")]
+        case splitOn "-" $ map toUpper str of
+            [s1, s2] ->
+                case readMaybe s1 of
+                    Nothing -> []
+                    Just c1 ->
+                        case readMaybe s2 of
+                            Nothing -> []
+                            Just c2 ->
+                                case mkProduct c1 c2 of
+                                    Left _        -> []
+                                    Right product -> [(product, "")]
+            _ -> []
 
-mkProduct :: Currency -> Currency -> Product
+mkProduct :: Currency -> Currency -> Either String Product
 mkProduct c1 c2 =
     let candidate = Pair c1 c2
     in if candidate `elem` allProducts
-           then candidate
-           else error $ show c1 ++ "-" ++ show c2 ++ " is not a valid product"
+           then Right candidate
+           else Left $ show c1 ++ "-" ++ show c2 ++ " is not a valid product"
 
 fromId :: ProductId -> Product
-fromId = read . show
+fromId ProductId {..} = fromRight' $ safeRead . cs $ unProductId
 
 toId :: Product -> ProductId
 toId product = ProductId $ cs . show $ product
+
+safeRead :: String -> Either String Product
+safeRead arg =
+    case readMaybe arg of
+        Nothing      -> Left $ arg ++ " could not be parsed as a product."
+        Just product -> Right product
+
+safeReads :: String -> Either String [Product]
+safeReads commaSeparatedArgs =
+    let args = splitOn "," commaSeparatedArgs
+        readProducts' products [] = Right $ reverse products
+        readProducts' acc (arg:rest) =
+            case safeRead arg of
+                Left err      -> Left err
+                Right product -> readProducts' (product : acc) rest
+    in readProducts' [] args

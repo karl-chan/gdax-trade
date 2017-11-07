@@ -2,21 +2,22 @@ name:                gdax-trade
 version:             0.1.0.0
 -- synopsis:
 -- description:
-homepage:            https://github.com/githubuser/gdax-trade#readme
+homepage:            https://github.com/karl-chan/gdax-trade
 license:             BSD3
 license-file:        LICENSE
 author:              Karl Chan
-maintainer:          example@example.com
-copyright:           2017 Author name here
+maintainer:          karl-chan@github.com
+copyright:           2017 Karl Chan
 category:            Web
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
+data-dir:            data
 data-files:          config.yaml
 
 library
   hs-source-dirs:      src
-  ghc-options:         -Wall
+  ghc-options:         -Wall -fno-warn-unused-do-bind -fno-warn-name-shadowing
   exposed-modules:     Gdax.Account.Balance
                      , Gdax.Account.MyAccount
                      , Gdax.Account.MyOrder
@@ -27,33 +28,49 @@ library
                      , Gdax.Algo.Strategy.Spread
                      , Gdax.Algo.Strategy.TurningPoints
                      , Gdax.Algo.Types
-                     , Gdax.Data.OrderBook.Types
-                     , Gdax.Data.OrderBook.Util
-                     , Gdax.Data.TimeSeries.Types
-                     , Gdax.Data.TimeSeries.Util
+                     , Gdax.Feed.Bundle
+                     , Gdax.Feed.Bundle.Types
+                     , Gdax.Feed.Gdax
+                     , Gdax.Feed.Gdax.Types
+                     , Gdax.Feed.MyAccount
+                     , Gdax.Feed.OrderBook
+                     , Gdax.Feed.TimeSeries
+                     , Gdax.Feed.MyAccount.Types
+                     , Gdax.Feed.OrderBook.Types
+                     , Gdax.Feed.TimeSeries.Types
+                     , Gdax.Types.Amount
+                     , Gdax.Types.Bundle
                      , Gdax.Types.Currency
+                     , Gdax.Types.OrderBook
+                     , Gdax.Types.OrderBook.Util
                      , Gdax.Types.Product
-                     , Gdax.Util.Bundle
+                     , Gdax.Types.TimeSeries
+                     , Gdax.Types.TimeSeries.Util
                      , Gdax.Util.Config
-                     , Gdax.Util.Config.Fees
                      , Gdax.Util.Feed
-                     , Gdax.Util.Feed.Bundle
-                     , Gdax.Util.Feed.Gdax
-                     , Gdax.Util.Feed.MyAccount
-                     , Gdax.Util.Feed.OrderBook
-                     , Gdax.Util.Feed.TimeSeries
+                     , Gdax.Util.Logger
                      , Gdax.Util.Throttle
+                     , Gdax.Util.Time
                      , Gdax.Util.Queue
                      , Gdax.Web.Server
   other-modules:       Paths_gdax_trade
-                     , Gdax.Data.TimeSeries.Internal
-                     , Gdax.Data.OrderBook.Internal
-                     , Gdax.Util.Config.Internal
-                     , Gdax.Web.Handler.Playground
-                     , Gdax.Web.Handler.Stream
-                     , Gdax.Web.Page.Playground
-                     , Gdax.Web.Page.Playground.Search
-                     , Gdax.Web.Page.Playground.Stream
+                     , Gdax.Feed.Bundle.Internal
+                     , Gdax.Feed.MyAccount.Internal
+                     , Gdax.Feed.MyAccount.Internal.Balance
+                     , Gdax.Feed.MyAccount.Internal.Order
+                     , Gdax.Feed.OrderBook.Internal
+                     , Gdax.Feed.TimeSeries.Internal
+                     , Gdax.Util.Config.Env
+                     , Gdax.Util.Config.Fees
+                     , Gdax.Util.Config.Log
+                     , Gdax.Util.Config.Yaml
+                     , Gdax.Util.Math
+                     , Gdax.Web.Playground.View.Fragment.Error
+                     , Gdax.Web.Playground.View.Fragment.Stream
+                     , Gdax.Web.Playground.View.Fragment.Rest
+                     , Gdax.Web.Playground.View.Template
+                     , Gdax.Web.Playground.Handler
+                     , Gdax.Web.Playground.Model
                      , Gdax.Web.Proxy
                      , Gdax.Web.Routes
                      , Gdax.Web.Template
@@ -61,19 +78,17 @@ library
   build-depends:       base >= 4.7 && < 5
                      , coinbase-exchange
                      , aeson
-                     , async
                      , blaze-html
                      , bytestring
                      , conduit
                      , conduit-extra
                      , containers
                      , deepseq
-                     , directory
+                     , either
+                     , fast-logger
                      , filepath
                      , happstack-server
-                     , happstack-websockets
                      , hashable
-                     , hslogger
                      , http-client
                      , http-client-tls
                      , http-types
@@ -88,16 +103,14 @@ library
                      , unordered-containers
                      , websockets
                      , yaml
-  ghc-options:         -fwarn-unused-imports
   default-language:    Haskell2010
 
 executable gdax-trade-exe
   hs-source-dirs:      app
   main-is:             Main.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
   build-depends:       base
                      , gdax-trade
-                     , coinbase-exchange
                      , mtl
                      , time
   default-language:    Haskell2010
@@ -106,7 +119,7 @@ executable gdax-trade-exe
 executable gdax-trade-server
   hs-source-dirs:      app
   main-is:             Server.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
   build-depends:       base
                      , gdax-trade
                      , mtl
@@ -115,9 +128,9 @@ executable gdax-trade-server
 test-suite gdax-trade-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
-  other-modules:       Gdax.Data.OrderBook.Test
-                     , Gdax.Data.TimeSeries.Test
   main-is:             Spec.hs
+  other-modules:       Gdax.Feed.OrderBook.Test
+                     , Gdax.Feed.TimeSeries.Test
   build-depends:       base
                      , gdax-trade
                      , coinbase-exchange
@@ -127,9 +140,9 @@ test-suite gdax-trade-test
                      , tasty
                      , tasty-hunit
                      , time
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
   default-language:    Haskell2010
 
 source-repository head
   type:     git
-  location: https://github.com/githubuser/gdax-trade
+  location: https://github.com/karl-chan/gdax-trade
