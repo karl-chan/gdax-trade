@@ -8,20 +8,24 @@ import           Gdax.Web.Routes
 
 import           Control.Monad.Reader
 import qualified Data.Map             as Map
+import           Data.Maybe
 import           Happstack.Server
 
 server :: ReaderT Config IO ()
 server = do
-    config <- ask
-    serverConfig <- reader serverConf
-    maybeServerCredentials <- reader serverCredentials
-    logInfo $ "Started server with port: " ++ (show . port $ serverConfig)
-    let auth =
-            case maybeServerCredentials of
-                Nothing -> id
-                Just ServerCredentials {..} -> basicAuth "My server" (Map.fromList [(username, password)])
-    liftIO $
-        simpleHTTP serverConfig $
-        auth $ do
-            decodeBody $ defaultBodyPolicy "/tmp" 0 1000 1000
-            msum $ runReader routes config
+  config <- ask
+  serverConfig <- reader serverConf
+  ServerCredentials {..} <- reader serverCredentials
+  logInfo $ "Started server with port: " ++ (show . port $ serverConfig)
+  let authT =
+        if isNothing maybeUsername || isNothing maybePassword
+          then id
+          else basicAuth
+                 "My server"
+                 (Map.fromList
+                    [(fromJust maybeUsername, fromJust maybePassword)])
+  liftIO $
+    simpleHTTP serverConfig $
+    authT $ do
+      decodeBody $ defaultBodyPolicy "/tmp" 0 1000 1000
+      msum $ runReader routes config

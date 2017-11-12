@@ -28,3 +28,10 @@ data OrderBookItem = OrderBookItem
     } deriving (Eq, Show, Data, Typeable, Generic, NFData)
 
 type OrderBookItems = HashMap OrderId OrderBookItem
+
+
+data OrderBookSummary = OrderBookSummary
+    { bestBid  :: Price
+    , bestAsk  :: Price
+    , midPrice :: Price
+    } deriving (Eq, Show, Data, Typeable, Generic, NFData)

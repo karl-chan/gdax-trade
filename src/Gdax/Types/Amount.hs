@@ -1,8 +1,10 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Gdax.Types.Amount where
 
 import           Coinbase.Exchange.Types.Core
 
 data Amount
-    = Size Size
-    | Price Price
-    deriving (Show)
+  = AmountSize Size
+  | AmountPrice Price
+  deriving (Eq, Show)

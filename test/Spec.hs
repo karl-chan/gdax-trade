@@ -1,33 +1,25 @@
 module Main where
 
-import           Gdax.Feed.Gdax
-import qualified Gdax.Feed.OrderBook.Test     as OrderBook
-import           Gdax.Feed.TimeSeries
-import qualified Gdax.Feed.TimeSeries.Test    as TimeSeries
-import           Gdax.Feed.TimeSeries.Types
-import           Gdax.Types.Currency
-import           Gdax.Types.Product
+import qualified Gdax.Algo.Cost.Test       as Cost
+import qualified Gdax.Feed.OrderBook.Test  as OrderBookFeed
+import qualified Gdax.Feed.TimeSeries.Test as TimeSeries
+import           Gdax.Types.Bundle
+import           Gdax.Types.Bundle.Test
 import           Gdax.Types.TimeSeries
-import           Gdax.Util.Config
 
-import           Coinbase.Exchange.Types
-import           Coinbase.Exchange.Types.Core
-
+import           Control.Monad
 import           Control.Monad.Reader
+import           System.IO.Unsafe
 import           Test.Tasty
 
 granularity :: Granularity
 granularity = 60 -- 60 seconds
 
-testProduct :: Product
-testProduct = Pair BTC USD
-
 main :: IO ()
-main = do
-    testConfig <- getGlobalConfig
-    testFeed <- runReaderT (newGdaxFeed [testProduct]) testConfig
-    defaultMain $ tests testProduct testFeed testConfig
+main = defaultMain . unsafePerformIO $ runReaderT tests testBundle
 
-tests :: Product -> GdaxFeed -> Config -> TestTree
-tests product gdaxFeed config = testGroup "All tests" [OrderBook.test product gdaxFeed config]
+tests :: ReaderT Bundle IO TestTree
+tests =
+  liftM2 testGroup (return "All tests") $
+  sequence [Cost.tests, OrderBookFeed.tests]
 --        TimeSeries.test granularity product gdaxFeed config]

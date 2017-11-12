@@ -23,12 +23,12 @@ sortedAsks OrderBook {..} = sortOn price $ HM.elems bookAsks
 sortedBids :: OrderBook -> [OrderBookItem]
 sortedBids OrderBook {..} = sortOn (negate . price) $ HM.elems bookBids
 
-orderBookSummary :: OrderBook -> (Price, Price, Price)
-orderBookSummary book =
-    let bestBid = price . head . sortedBids $ book
-        bestAsk = price . head . sortedAsks $ book
-        midPrice = (bestBid + bestAsk) / 2
-    in (bestBid, midPrice, bestAsk)
+getSummary :: OrderBook -> OrderBookSummary
+getSummary book =
+  let bestBid = price . head . sortedBids $ book
+      bestAsk = price . head . sortedAsks $ book
+  in OrderBookSummary
+     {bestBid = bestBid, bestAsk = bestAsk, midPrice = (bestBid + bestAsk) / 2}
 
 -- Amount of spread to incur given purchase of size
 --marketSpread :: Side -> Size -> OrderBook -> Scientific
@@ -38,31 +38,30 @@ orderBookSummary book =
 --        Sell -> bookAsks
 orderBookItemsCost :: [OrderBookItem] -> Bool -> Price
 orderBookItemsCost bookItems inQuoteCurrency =
-    sum
-        [ let priceItem =
-                  if inQuoteCurrency
-                      then price item
-                      else 1
-          in priceItem * (realToFrac . size) item
-        | item <- bookItems
-        ]
-
-
+  sum
+    [ let priceItem =
+            if inQuoteCurrency
+              then price item
+              else 1
+      in priceItem * (realToFrac . size) item
+    | item <- bookItems
+    ]
 
 restOrderBook :: Product -> ReaderT Config IO OrderBook
 restOrderBook product = do
-    conf <- reader exchangeConf
-    rawBook <- execExchangeT conf $ getOrderBook (toId product)
-    return $ fromRawOrderBook rawBook product
+  conf <- reader exchangeConf
+  rawBook <- execExchangeT conf $ getOrderBook (toId product)
+  return $ fromRawOrderBook rawBook product
 
 fromRawOrderBook :: CB.Book OrderId -> Product -> OrderBook
 fromRawOrderBook CB.Book {..} product =
-    OrderBook
-    { bookSequence = bookSequence
-    , bookBids = fromRawBookItems bookBids
-    , bookAsks = fromRawBookItems bookAsks
-    , bookProduct = product
-    }
+  OrderBook
+  { bookSequence = bookSequence
+  , bookBids = fromRawBookItems bookBids
+  , bookAsks = fromRawBookItems bookAsks
+  , bookProduct = product
+  }
   where
     fromRawBookItems rawBookItems = HM.fromList $ map toKeyValue rawBookItems
-    toKeyValue (CB.BookItem price size orderId) = (orderId, OrderBookItem price size orderId)
+    toKeyValue (CB.BookItem price size orderId) =
+      (orderId, OrderBookItem price size orderId)

@@ -13,6 +13,7 @@
         * `GDAX_SERVER_USER`
         * `GDAX_SERVER_PASS`
         * `GDAX_SERVER_PORT` (optional, defaults to `PORT` then 8080)
+        * `GDAX_SERVER_HEROKU_KEY`
 2. `stack install`
 3. To run the algorithmic trading program:
     * `stack exec gdax-trade-exe`

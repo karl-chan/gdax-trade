@@ -26,7 +26,6 @@
     <orderEntry type="library" name="happstack-websockets" level="project" />
     <orderEntry type="library" name="happstack-websockets" level="project" />
     <orderEntry type="library" name="happstack-websockets" level="project" />
-    <orderEntry type="library" name="coinbase-exchange" level="project" />
     <orderEntry type="library" name="happstack-websockets" level="project" />
     <orderEntry type="library" name="coinbase-exchange" level="project" />
     <orderEntry type="library" name="happstack-websockets" level="project" />
@@ -267,6 +266,10 @@
     <orderEntry type="library" name="void-0.7.2" level="project" />
     <orderEntry type="library" name="xhtml-3000.2.2" level="project" />
     <orderEntry type="library" name="yaml-0.8.23.3" level="project" />
+    <orderEntry type="library" name="coinbase-exchange" level="project" />
+    <orderEntry type="library" name="coinbase-exchange" level="project" />
+    <orderEntry type="library" name="coinbase-exchange" level="project" />
+    <orderEntry type="library" name="coinbase-exchange" level="project" />
     <orderEntry type="library" name="coinbase-exchange" level="project" />
     <orderEntry type="library" name="coinbase-exchange" level="project" />
     <orderEntry type="library" name="coinbase-exchange" level="project" />

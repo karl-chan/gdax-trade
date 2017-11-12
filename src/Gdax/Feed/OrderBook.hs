@@ -1,7 +1,7 @@
 module Gdax.Feed.OrderBook
-    ( module Gdax.Feed.OrderBook.Types
-    , module Gdax.Feed.OrderBook
-    ) where
+  ( module Gdax.Feed.OrderBook.Types
+  , module Gdax.Feed.OrderBook
+  ) where
 
 import           Gdax.Feed.Gdax.Types
 import           Gdax.Feed.OrderBook.Internal
@@ -10,10 +10,10 @@ import           Gdax.Types.Product
 import           Gdax.Util.Config
 import           Gdax.Util.Feed
 
-import           Gdax.Util.Logger
 import           Control.Monad.Reader
+import           Prelude                      hiding (product)
 
 newOrderBookFeed :: GdaxFeed -> Product -> ReaderT Config IO OrderBookFeed
 newOrderBookFeed gdaxFeed product = do
-    gdaxFeedListener <- liftIO . newFeedListener $ gdaxFeed
-    streamOrderBook product gdaxFeedListener
+  gdaxFeedListener <- liftIO . newFeedListener $ gdaxFeed
+  streamOrderBook product gdaxFeedListener

@@ -6,68 +6,101 @@ module Gdax.Algo.Cost where
 
 import           Gdax.Algo.Action
 import           Gdax.Algo.Types
+import           Gdax.Algo.Util
 import           Gdax.Types.Amount
 import           Gdax.Types.Bundle
 import           Gdax.Types.OrderBook         as Book
 import           Gdax.Types.OrderBook.Util
 import           Gdax.Util.Config
 import           Gdax.Util.Config.Fees
+import           Gdax.Util.Logger
+import           Gdax.Util.Math
 
-import           Coinbase.Exchange.Types.Core (Price, Side (Buy, Sell))
+import           Coinbase.Exchange.Types.Core (Price, Side (Buy, Sell), Size)
 
 import           Control.Monad.Reader
 import           Prelude                      hiding (product)
 
 calculateCost :: CostCalculator
-calculateCost action = do
-    bundle <- ask
-    feesConfig <- reader $ feesConf . config
-    let book = orderBook (product action) bundle
-    return $ platformCharge action feesConfig + spreadCost action book
+calculateCost actions = do
+  logDebug "In calculate cost."
+  case actions of
+    [] -> return 0
+    action:remainingActions -> do
+      singleCost <- calculateSingleCost action
+      remainingCost <- calculateCost remainingActions
+      return $ singleCost + remainingCost
+
+calculateSingleCost :: Action -> ReaderT Bundle IO Cost
+calculateSingleCost action = do
+  feesConfig <- reader $ feesConf . config
+  case action of
+    Cancel {} -> return 0
+    _ -> do
+      ProductBundle {..} <- extractProductBundle $ product action
+      logDebug "Extracted product bundle."
+      let pc = platformCharge action feesConfig
+          msc = marketSpreadCost action book
+      return $
+        pureDebug ("Platform charge: " ++ show pc) pc +
+        pureDebug ("Market spread cost: " ++ show msc) msc
 
 -- Cost of currency conversion imposed by platform, as percentage
 platformCharge :: Action -> FeesConf -> Cost
 platformCharge action feesConfig =
-    case action of
-        Cancel {} -> 0
-        Limit {}  -> takerFee (product action) feesConfig
-        _         -> makerFee (product action) feesConfig
+  case action of
+    Cancel {} -> 0
+    Limit {}  -> takerFee (product action) feesConfig
+    _         -> makerFee (product action) feesConfig
 
--- Cost of spread during transaction, as percentage
-spreadCost :: Action -> OrderBook -> Cost
-spreadCost Market {..} book =
-    let (_, midPrice, _) = orderBookSummary book
-        bookItems =
+-- Cost of spread induced as market taker, as percentage
+marketSpreadCost :: Action -> OrderBook -> Cost
+marketSpreadCost action book =
+  case action of
+    Market {..} ->
+      let OrderBookSummary {..} = getSummary book
+          bookItems =
             case side of
-                Buy  -> sortedAsks book
-                Sell -> sortedBids book
-    in realToFrac . abs $ (totalCost bookItems amount - midPrice) / midPrice
-spreadCost _ _ = 0
+              Buy  -> sortedAsks book
+              Sell -> sortedBids book
+      in case amount of
+           AmountSize tradeSize ->
+             let expectedPrice = realToFrac tradeSize * midPrice
+                 priceDiff = actualPrice bookItems tradeSize - expectedPrice
+             in abs $ priceDiff `safeDiv` expectedPrice
+           AmountPrice tradePrice ->
+             let expectedSize = tradePrice `safeDiv` midPrice
+                 sizeDiff = actualSize bookItems tradePrice - expectedSize
+             in abs $ sizeDiff `safeDiv` expectedSize
+    _ -> 0
 
--- Total price required to buy size from order book items
-totalCost :: [OrderBookItem] -> Amount -> Price
-totalCost = totalCost' 0
+-- Actual size required to buy / sell price from order book items
+actualSize :: [OrderBookItem] -> Price -> Size
+actualSize items tradePrice = actualSize' items tradePrice 0
+  where
+    actualSize' :: [OrderBookItem] -> Price -> Size -> Size
+    actualSize' bkItems remPrice accSize =
+      case bkItems of
+        [] -> accSize
+        (OrderBookItem {..}:remItems) ->
+          if remPrice <= realToFrac size * price
+            then actualSize' [] 0 (accSize + remPrice `safeDiv` price)
+            else actualSize'
+                   remItems
+                   (remPrice - realToFrac size * price)
+                   (accSize + size)
 
-totalCost' :: Price -> [OrderBookItem] -> Amount -> Price
-totalCost' cost [] _ = cost -- Base case
-totalCost' acc (bkItem:items) remAmount =
-    let canComplete =
-            case remAmount of
-                Size remSize -> Book.size bkItem >= remSize
-                Price remFunds -> price bkItem * (realToFrac . Book.size) bkItem >= remFunds
-    in if canComplete
-           then let inc =
-                        case remAmount of
-                            Size remSize -> realToFrac remSize * price bkItem
-                            Price remFunds -> remFunds
-                    zero =
-                        case remAmount of
-                            Size {}  -> Size 0
-                            Price {} -> Price 0
-                in totalCost' (acc + inc) [] zero
-           else let inc = (realToFrac . Book.size) bkItem * price bkItem
-                    newRemAmount =
-                        case remAmount of
-                            Size remSize -> Size $ remSize - Book.size bkItem
-                            Price remFunds -> Price $ remFunds - inc
-                in totalCost' (acc + inc) items newRemAmount
+-- Actual price required to buy / sell size from order book items
+actualPrice :: [OrderBookItem] -> Size -> Price
+actualPrice items tradeSize = actualPrice' items tradeSize 0
+  where
+    actualPrice' bkItems remSize accPrice =
+      case bkItems of
+        [] -> accPrice
+        (OrderBookItem {..}:remItems) ->
+          if remSize <= size
+            then actualPrice' [] 0 (accPrice + realToFrac remSize * price)
+            else actualPrice'
+                   remItems
+                   (remSize - size)
+                   (accPrice + realToFrac size * price)
