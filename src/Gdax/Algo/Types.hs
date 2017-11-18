@@ -21,7 +21,7 @@ type CostCalculator = [Action] -> ReaderT Bundle IO Cost
 type Executor = Proposal -> ReaderT Bundle IO ()
 
 -- As if there are no open orders
-type FreshPlan = Action
+type FreshPlan = NewAction
 
 data StrategyProposal = StrategyProposal
   { name      :: String

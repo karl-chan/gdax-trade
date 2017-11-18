@@ -20,32 +20,44 @@ import           Prelude                hiding (product)
 optimise :: Optimiser
 optimise freshPlan = do
   Bundle {..} <- ask
-  let p = product freshPlan
-      openOrders = findOrdersForProduct account p
-      alreadySatisfied =
-        length openOrders == 1 && action (head openOrders) == freshPlan
-      cancelOrders = map (Cancel . orderId) openOrders
-      actions =
-        if alreadySatisfied
+  skip <- alreadySatisfied freshPlan
+  let actions =
+        if skip
           then []
-          else cancelOrders ++ [freshPlan]
+          else let cancelOpenOrders =
+                     [CancelAction (CancelProduct $ product freshPlan)]
+               in cancelOpenOrders ++ [NewAction freshPlan]
   mapM roundAction actions
 
--- Round action to acceptable decimal places to prevent rejection by GDAX
+-- Skip update if fresh plan is identical to unique open order
+alreadySatisfied :: FreshPlan -> ReaderT Bundle IO Bool
+alreadySatisfied freshPlan = do
+  Bundle {..} <- ask
+  let openOrders = findAllOrders account
+  case openOrders of
+    [MyOrder {action = NewAction newAction}] -> return $ newAction == freshPlan
+    _ -> return False
+
 roundAction :: Action -> ReaderT Bundle IO Action
 roundAction action = do
+  case action of
+    CancelAction {}     -> return action
+    NewAction newAction -> NewAction <$> roundNewAction newAction
+
+-- Round action to acceptable decimal places to prevent rejection by GDAX
+roundNewAction :: NewAction -> ReaderT Bundle IO NewAction
+roundNewAction newAction = do
   dp <- reader $ apiDecimalPlaces . config
-  let roundedAction =
-        case action of
-          Market {..} -> action {amount = roundAmount dp amount}
+  let roundedNewAction =
+        case newAction of
+          Market {..} -> newAction {amount = roundAmount dp amount}
           Limit {..} ->
-            action
+            newAction
             {limitPrice = roundPrice dp limitPrice, size = roundSize dp size}
           Stop {..} ->
-            action
+            newAction
             { stopPrice = roundPrice dp stopPrice
             , amount = roundAmount dp amount
             }
-          Cancel {} -> action
-  logDebug $ "Rounded action to: " ++ show roundedAction
-  return roundedAction
+  logDebug $ "Rounded action to: " ++ show roundedNewAction
+  return roundedNewAction

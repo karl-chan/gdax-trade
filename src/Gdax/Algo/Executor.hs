@@ -29,23 +29,26 @@ executeAction :: Action -> ReaderT Bundle IO ()
 executeAction action = do
   logDebug $ "About to execute action: " ++ show action
   conf <- reader config
-  let newOrder = runReader (toNewOrder action) conf
-      createNewOrder = void . createOrder $ newOrder
-      exchangeMethod =
+  let exchangeMethod =
         case action of
-          Market {}      -> createNewOrder
-          Limit {}       -> createNewOrder
-          Stop {}        -> createNewOrder
-          Cancel orderId -> cancelOrder orderId
+          CancelAction cancelAction ->
+            case cancelAction of
+              Cancel orderId -> cancelOrder orderId
+              CancelProduct product ->
+                void $ cancelAllOrders (Just $ toId product)
+              CancelAll -> void $ cancelAllOrders Nothing
+          NewAction newAction ->
+            let newOrder = runReader (toNewOrder newAction) conf
+            in void $ createOrder newOrder
   execExchangeT (exchangeConf conf) exchangeMethod
   logInfo $ "Executed action: " ++ show action
 
-toNewOrder :: Action -> Reader Config NewOrder
-toNewOrder action = do
-  let productId = toId . product $ action
+toNewOrder :: NewAction -> Reader Config NewOrder
+toNewOrder newAction = do
+  let productId = toId . product $ newAction
       selfTrade = DecrementAndCancel
       newOrder =
-        case action of
+        case newAction of
           Market {..} ->
             NewMarketOrder
             { noProductId = productId
@@ -75,7 +78,6 @@ toNewOrder action = do
             , noSizeAndOrFunds = transformAmount amount
             , noClientOid = Nothing
             }
-          _ -> error $ "Cannot create new order from " ++ show action
   return newOrder
 
 transformAmount :: Amount -> Either Size (Maybe Size, CB.Cost)

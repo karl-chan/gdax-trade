@@ -12,9 +12,6 @@ import           Control.Monad.Reader
 import           System.IO.Unsafe
 import           Test.Tasty
 
-granularity :: Granularity
-granularity = 60 -- 60 seconds
-
 main :: IO ()
 main = defaultMain . unsafePerformIO $ runReaderT tests testBundle
 

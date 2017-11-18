@@ -5,15 +5,13 @@
 module Gdax.Algo.Strategy.Spread where
 
 import           Gdax.Account.Balance
-import           Gdax.Account.MyAccount
 import           Gdax.Algo.Action
 import           Gdax.Algo.Types
 import           Gdax.Algo.Util
-import           Gdax.Types.Bundle
 import           Gdax.Types.OrderBook
 import           Gdax.Types.OrderBook.Util
-import           Gdax.Types.Product
 import           Gdax.Util.Logger
+import           Gdax.Util.Math
 
 import           Coinbase.Exchange.Types.Core (Side (..))
 
@@ -28,7 +26,7 @@ spread product = do
   logDebug $ "Book summary: " ++ show bookSummary
   let hasMoreBalance1 =
         (total balance1) * realToFrac midPrice > (total balance2)
-      action =
+      newAction =
         if hasMoreBalance1
           then Limit
                { side = Sell
@@ -43,11 +41,9 @@ spread product = do
                , size =
                    realToFrac $ (total balance2 / realToFrac bestBid :: Double)
                }
-      profit =
-        let numerator = bestAsk - bestBid
-            denominator = midPrice
-        in (realToFrac numerator :: Double) / (realToFrac denominator :: Double)
+      profit = (bestAsk - bestBid) `safeDiv` midPrice
       proposal =
-        StrategyProposal {name = "Spread", freshPlan = action, profit = profit}
+        StrategyProposal
+        {name = "Spread", freshPlan = newAction, profit = profit}
   logDebug $ "Proposal: " ++ show proposal
   return proposal

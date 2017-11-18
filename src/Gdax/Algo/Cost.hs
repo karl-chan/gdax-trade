@@ -35,26 +35,28 @@ calculateSingleCost :: Action -> ReaderT Bundle IO Cost
 calculateSingleCost action = do
   feesConfig <- reader $ feesConf . config
   case action of
-    Cancel {} -> return 0
-    _ -> do
-      ProductBundle {..} <- extractProductBundle $ product action
+    CancelAction {} -> return 0
+    NewAction newAction -> do
+      ProductBundle {..} <- extractProductBundle $ product newAction
       logDebug "Extracted product bundle."
-      let pc = platformCharge action feesConfig
-          msc = marketSpreadCost action book
+      let pc = platformCharge newAction feesConfig
+          msc = marketSpreadCost newAction book
       return $
         pureDebug ("Platform charge: " ++ show pc) pc +
         pureDebug ("Market spread cost: " ++ show msc) msc
 
 -- Cost of currency conversion imposed by platform, as percentage
-platformCharge :: Action -> FeesConf -> Cost
-platformCharge action feesConfig =
-  case action of
-    Cancel {} -> 0
-    Limit {}  -> takerFee (product action) feesConfig
-    _         -> makerFee (product action) feesConfig
+platformCharge :: NewAction -> FeesConf -> Cost
+platformCharge newAction feesConfig =
+  let useTakerFee = takerFee (product newAction) feesConfig
+      useMakerFee = makerFee (product newAction) feesConfig
+  in case newAction of
+       Limit {}  -> useTakerFee
+       Market {} -> useMakerFee
+       Stop {}   -> useMakerFee
 
 -- Cost of spread induced as market taker, as percentage
-marketSpreadCost :: Action -> OrderBook -> Cost
+marketSpreadCost :: NewAction -> OrderBook -> Cost
 marketSpreadCost action book =
   case action of
     Market {..} ->

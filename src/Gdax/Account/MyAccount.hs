@@ -28,12 +28,18 @@ data MyAccount = MyAccount
 getBalance :: Currency -> MyAccount -> Balance
 getBalance currency account = balances account ! currency
 
+findAllOrders :: MyAccount -> [MyOrder]
+findAllOrders MyAccount {..} = HM.elems orders
+
 findOrder :: MyAccount -> OrderId -> Maybe MyOrder
 findOrder MyAccount {..} orderId = HM.lookup orderId orders
 
 findOrdersForProduct :: MyAccount -> Product -> [MyOrder]
 findOrdersForProduct MyAccount {..} p =
-  let isProduct MyOrder {..} = product action == p
+  let isProduct MyOrder {..} =
+        case action of
+          CancelAction {}     -> False
+          NewAction newAction -> product newAction == p
   in filter isProduct $ HM.elems orders
 
 initAccount :: ReaderT Config IO MyAccount
@@ -67,6 +73,7 @@ initOrders = do
             MyOrder
             { orderId = CB.orderId order
             , action =
+                NewAction $
                 Limit
                 { side = orderSide
                 , product = P.fromId orderProductId
@@ -82,6 +89,7 @@ initOrders = do
             in MyOrder
                { orderId = CB.orderId order
                , action =
+                   NewAction $
                    Stop
                    { side = orderSide
                    , product = P.fromId orderProductId

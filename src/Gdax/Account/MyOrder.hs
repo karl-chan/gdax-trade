@@ -8,9 +8,6 @@ import           Coinbase.Exchange.Types.Core hiding (Limit, Market, Open)
 import           Prelude                      hiding (product)
 
 data MyOrder = MyOrder
-    { orderId :: OrderId
-    , action  :: Action
-    } deriving (Show)
-
-getProduct :: MyOrder -> Product
-getProduct = product . action
+  { orderId :: OrderId
+  , action  :: Action
+  } deriving (Show)
