@@ -67,20 +67,12 @@ library
                      , Gdax.Util.Config.Fees
                      , Gdax.Util.Config.Log
                      , Gdax.Util.Config.Yaml
-                     , Gdax.Web.Playground.View.Fragment.Error
-                     , Gdax.Web.Playground.View.Fragment.Stream
-                     , Gdax.Web.Playground.View.Fragment.Rest
-                     , Gdax.Web.Playground.View.Template
-                     , Gdax.Web.Playground.Handler
-                     , Gdax.Web.Playground.Model
-                     , Gdax.Web.Proxy
+                     , Gdax.Web.Handlers.Proxy
+                     , Gdax.Web.Handlers.Stream
                      , Gdax.Web.Routes
-                     , Gdax.Web.Template
-                     , Gdax.Web.Types
   build-depends:       base >= 4.7 && < 5
                      , coinbase-exchange
                      , aeson
-                     , blaze-html
                      , bytestring
                      , conduit
                      , conduit-extra
@@ -89,7 +81,6 @@ library
                      , either
                      , fast-logger
                      , filepath
-                     , happstack-server
                      , hashable
                      , http-client
                      , http-client-tls
@@ -104,6 +95,10 @@ library
                      , time
                      , unordered-containers
                      , uuid
+                     , wai
+                     , wai-app-static
+                     , wai-extra
+                     , warp
                      , websockets
                      , yaml
   default-language:    Haskell2010

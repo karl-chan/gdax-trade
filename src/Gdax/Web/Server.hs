@@ -1,4 +1,5 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module Gdax.Web.Server where
 
@@ -7,25 +8,26 @@ import           Gdax.Util.Logger
 import           Gdax.Web.Routes
 
 import           Control.Monad.Reader
-import qualified Data.Map             as Map
 import           Data.Maybe
-import           Happstack.Server
+import           Data.String.Conversions
+import           Network.Wai
+import           Network.Wai.Handler.Warp
+import           Network.Wai.Middleware.HttpAuth
 
 server :: ReaderT Config IO ()
 server = do
-  config <- ask
-  serverConfig <- reader serverConf
-  ServerCredentials {..} <- reader serverCredentials
-  logInfo $ "Started server with port: " ++ (show . port $ serverConfig)
-  let authT =
-        if isNothing maybeUsername || isNothing maybePassword
-          then id
-          else basicAuth
-                 "My server"
-                 (Map.fromList
-                    [(fromJust maybeUsername, fromJust maybePassword)])
-  liftIO $
-    simpleHTTP serverConfig $
-    authT $ do
-      decodeBody $ defaultBodyPolicy "/tmp" 0 1000 1000
-      msum $ runReader routes config
+  conf <- ask
+  sc@ServerConf {..} <- reader serverConf
+  logInfo $ "Starting server with port: " ++ show port
+  liftIO $ run port $ (authT sc) $ routes conf
+
+authT :: ServerConf -> Middleware
+authT ServerConf {..} =
+  if isNothing maybeUsername || isNothing maybePassword
+    then id
+    else basicAuth
+           (\u p ->
+              return $
+              u == (cs . fromJust) maybeUsername &&
+              p == (cs . fromJust) maybePassword)
+           "Gdax Trade App"

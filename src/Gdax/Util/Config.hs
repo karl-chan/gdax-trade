@@ -16,12 +16,9 @@ import qualified Data.HashMap.Strict     as HM
 import           Data.Maybe
 import           Data.Time.Clock         (NominalDiffTime)
 import           Data.UUID
-import           Happstack.Server        as H (Conf (..), nullConf)
 import           Network.HTTP.Client     hiding (port)
 import           Network.HTTP.Client.TLS
 import           Prelude                 hiding (log, product)
-
-type ServerConf = Conf
 
 data Config = Config
   { exchangeConf           :: ExchangeConf
@@ -35,15 +32,15 @@ data Config = Config
   , apiThrottleRetryGap    :: NominalDiffTime
   , bundleRefreshRate      :: NominalDiffTime
   , serverConf             :: ServerConf
-  , serverCredentials      :: ServerCredentials
   , feesConf               :: FeesConf
   , logConf                :: LogConfig
   }
 
-data ServerCredentials = ServerCredentials
+data ServerConf = ServerConf
   { maybeUsername :: Maybe String
   , maybePassword :: Maybe String
   , herokuKey     :: UUID
+  , port          :: Int
   }
 
 getGlobalConfig :: IO Config
@@ -52,12 +49,11 @@ getGlobalConfig = do
   yamlConfig <- getYamlConfig
   liveExchangeConf <- toExchangeConf Live envConfig
   sandboxExchangeConf <- toExchangeConf Sandbox envConfig
-  serverConf <- toServerConf $ server envConfig
   let exchangeConf =
         case map toLower (mode . api $ yamlConfig) of
           "live" -> liveExchangeConf
           _      -> sandboxExchangeConf
-      serverCredentials = toServerCredentials $ server envConfig
+      serverConf = toServerConf $ server envConfig
   return
     Config
     { exchangeConf = exchangeConf
@@ -71,7 +67,6 @@ getGlobalConfig = do
     , apiThrottleRetryGap = (realToFrac . retryGap . throttle . api) yamlConfig
     , bundleRefreshRate = (realToFrac . refreshRate . bundle) yamlConfig
     , serverConf = serverConf
-    , serverCredentials = serverCredentials
     , feesConf = (toFeesConf . fees) yamlConfig
     , logConf = (toLogConf . log) yamlConfig
     }
@@ -93,15 +88,13 @@ toExchangeConf apiType EnvConfig {..} = do
     Left err    -> error err
     Right token -> return $ ExchangeConf mgr (Just token) apiType
 
-toServerConf :: EnvServerConfig -> IO ServerConf
-toServerConf EnvServerConfig {..} = return nullConf {H.port = port}
-
-toServerCredentials :: EnvServerConfig -> ServerCredentials
-toServerCredentials EnvServerConfig {..} =
-  ServerCredentials
+toServerConf :: EnvServerConfig -> ServerConf
+toServerConf EnvServerConfig {..} =
+  ServerConf
   { maybeUsername = maybeUsername
   , maybePassword = maybePassword
   , herokuKey = herokuKey
+  , port = port
   }
 
 toFeesConf :: HashMap String YamlFeeConfig -> FeesConf

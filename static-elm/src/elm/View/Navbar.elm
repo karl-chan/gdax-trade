@@ -1,4 +1,4 @@
-module View.Navbar exposing (..)
+module View.Navbar exposing (navbar)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)

@@ -1,2 +1,1 @@
-start cmd /k "cd static-elm && elm-app start"
-stack build && stack exec gdax-trade-server
+stack build :gdax-trade-server && stack exec gdax-trade-server

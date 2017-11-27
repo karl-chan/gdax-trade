@@ -1,17 +1,18 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+
 module Gdax.Web.Routes where
 
 import           Gdax.Util.Config
-import           Gdax.Web.Playground.Handler
-import           Gdax.Web.Template
+import           Gdax.Web.Handlers.Proxy
+import           Gdax.Web.Handlers.Stream
 
-import           Control.Monad.Reader
-import           Happstack.Server
+import           Network.Wai
+import           Network.Wai.Application.Static
 
-routes :: Reader Config [ServerPartT IO Response]
-routes = do
-    conf <- ask
-    return
-        [ dirs "playground" $ runReaderT playgroundHandler conf
-        , dir "static" $ serveDirectory EnableBrowsing [] staticDir
-        , seeOther ("/playground" :: String) $ toResponse ("Redirecting to /playground..." :: String)
-        ]
+routes :: Config -> Application
+routes conf req respond = do
+  case (requestMethod req, pathInfo req) of
+    ("POST", ["api", "rest"]) -> proxy conf req respond
+    ("POST", ["api", "stream"]) -> stream conf req respond
+    _ -> staticApp (defaultFileServerSettings "static") req respond

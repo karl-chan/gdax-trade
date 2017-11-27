@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Gdax Trade App</title>
+    <link rel="shortcut icon" href="/img/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="/css/jjsonviewer.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/materialize-css@0.100.2/dist/css/materialize.min.css">
+</head>
+
+<body>
+    <app></app>
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.2.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/materialize-css@0.100.2/dist/js/materialize.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/riot@3.7.4/riot+compiler.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/riot-route@3.1.2/dist/route+tag.min.js"></script>
+    <script src="/js/jjsonviewer.min.js"></script>
+    <script src="/js/uri.min.js"></script>
+
+    <script type="riot/tag" src="/app/layout/navbar.tag"></script>
+    <script type="riot/tag" src="/app/layout/drawer.tag"></script>
+    <script type="riot/tag" src="/app/view/dashboard.tag"></script>
+    <script type="riot/tag" src="/app/modal/docs.tag"></script>
+    <script type="riot/tag" src="/app/modal/about.tag"></script>
+    <script type="riot/tag" src="/app/app.tag"></script>
+
+    <script>     
+        riot.compile(function () {
+            riot.mount('app');
+            route.start(true);
+        });
+    </script>
+</body>
+
+</html>

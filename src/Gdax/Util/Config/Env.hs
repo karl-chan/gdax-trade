@@ -25,8 +25,8 @@ data EnvCredentialsConfig = EnvCredentialsConfig
 data EnvServerConfig = EnvServerConfig
   { maybeUsername :: Maybe String
   , maybePassword :: Maybe String
-  , port          :: Int
   , herokuKey     :: UUID
+  , port          :: Int
   } deriving (Show)
 
 getEnvConfig :: IO EnvConfig
@@ -86,5 +86,5 @@ getEnvConfig = do
     { liveCredentials = EnvCredentialsConfig key secret passphrase
     , sandboxCredentials =
         EnvCredentialsConfig sandboxKey sandboxSecret sandboxPassphrase
-    , server = EnvServerConfig maybeServerUser maybeServerPass port herokuKey
+    , server = EnvServerConfig maybeServerUser maybeServerPass herokuKey port
     }

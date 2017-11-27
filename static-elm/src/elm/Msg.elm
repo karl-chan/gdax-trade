@@ -1,9 +1,15 @@
 module Msg exposing (..)
 
-import Model.Searchbar exposing (..)
+import Http
+import Material
+import Model.Http exposing (..)
 
 
 type Msg
     = NoOp
-    | OnInitHttpResponse (Result Http.Error InitHttpResponse)
-    | OnSearchRequest SearchRequest
+    | OnHttpOptionsResponse (Result Http.Error HttpOptionsResponse)
+    | OnHttpSearchResponse (Result Http.Error HttpSearchResponse)
+    | SetSearchRestMethod String
+    | SetSearchPayload
+    | Mdl (Material.Msg Msg)
+    | OnSnackbarAction

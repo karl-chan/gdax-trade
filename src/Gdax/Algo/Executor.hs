@@ -11,6 +11,7 @@ import           Gdax.Types.Amount
 import           Gdax.Types.Bundle
 import           Gdax.Types.Product
 import           Gdax.Util.Config
+import           Gdax.Util.Logger
 
 import           Coinbase.Exchange.Private
 import           Coinbase.Exchange.Types
@@ -19,7 +20,6 @@ import qualified Coinbase.Exchange.Types.Core as CB
 
 import           Control.Monad
 import           Control.Monad.Reader
-import           Gdax.Util.Logger
 import           Prelude                      hiding (product)
 
 execute :: Executor
