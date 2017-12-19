@@ -6,12 +6,22 @@ import           Gdax.Types.Amount
 
 import           Coinbase.Exchange.Types.Core
 
+import           Data.List
 import           Data.Scientific
 
 -- For scientific instances as they will diverge unless converted to double
 safeDiv :: (Real a, Fractional b) => a -> a -> b
 safeDiv n1 n2 =
   realToFrac $ (realToFrac n1 :: Double) / (realToFrac n2 :: Double)
+
+average :: (Real a, Fractional a) => [a] -> a
+average xs = (sum xs) `safeDiv` (realToFrac . length $ xs)
+
+percentile :: (Real a, Fractional a) => [a] -> Double -> a
+percentile xs pc =
+  let sorted = sort xs
+      item = floor $ pc / 100 * (realToFrac $ length xs)
+  in sorted !! item
 
 -- For rounding down (floor) of scientific types
 roundCoin :: Int -> CoinScientific -> CoinScientific

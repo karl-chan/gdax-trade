@@ -1,32 +1,32 @@
-module Gdax.Util.Config.Env where
+module Gdax.Util.Config.Internal.Env where
 
-import           Control.Monad
-import           Data.ByteString         (ByteString)
-import           Data.Maybe
-import           Data.String.Conversions
-import           Data.UUID
-import           System.Environment
+import Control.Monad
+import Data.ByteString (ByteString)
+import Data.Maybe
+import Data.String.Conversions
+import Data.UUID
+import System.Environment
 
 defaultPort :: Int
 defaultPort = 8080
 
 data EnvConfig = EnvConfig
-  { liveCredentials    :: EnvCredentialsConfig
+  { liveCredentials :: EnvCredentialsConfig
   , sandboxCredentials :: EnvCredentialsConfig
-  , server             :: EnvServerConfig
+  , server :: EnvServerConfig
   } deriving (Show)
 
 data EnvCredentialsConfig = EnvCredentialsConfig
-  { key        :: ByteString
-  , secret     :: ByteString
+  { key :: ByteString
+  , secret :: ByteString
   , passphrase :: ByteString
   } deriving (Show)
 
 data EnvServerConfig = EnvServerConfig
   { maybeUsername :: Maybe String
   , maybePassword :: Maybe String
-  , herokuKey     :: UUID
-  , port          :: Int
+  , herokuKey :: UUID
+  , port :: Int
   } deriving (Show)
 
 getEnvConfig :: IO EnvConfig
@@ -71,7 +71,7 @@ getEnvConfig = do
         case maybeServerPort of
           Nothing ->
             case maybeServerFallbackPort of
-              Nothing              -> defaultPort
+              Nothing -> defaultPort
               Just fallbackPortStr -> read fallbackPortStr
           Just portStr -> read portStr
       herokuKey =

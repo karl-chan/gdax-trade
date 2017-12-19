@@ -2,22 +2,21 @@
 
 module Gdax.Feed.MyAccount.Internal.Balance where
 
-import           Gdax.Account.Balance
-import           Gdax.Account.MyAccount
-import           Gdax.Algo.Action
-import           Gdax.Types.Currency            hiding (fromId)
-import           Gdax.Types.Product
-import           Gdax.Util.Config
-import           Gdax.Util.Config.Fees
+import Gdax.Account.Balance
+import Gdax.Account.MyAccount
+import Gdax.Algo.Action
+import Gdax.Types.Currency hiding (fromId)
+import Gdax.Types.Product
+import Gdax.Util.Config
 
-import           Coinbase.Exchange.Socket
-import           Coinbase.Exchange.Types.Core   hiding (Done, Limit, Open)
-import           Coinbase.Exchange.Types.Socket
+import Coinbase.Exchange.Socket
+import Coinbase.Exchange.Types.Core hiding (Done, Limit, Open)
+import Coinbase.Exchange.Types.Socket
 
-import           Control.Monad.Reader
-import           Data.HashMap.Strict            (HashMap)
-import qualified Data.HashMap.Strict            as HM
-import           Data.Maybe
+import Control.Monad.Reader
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HM
+import Data.Maybe
 
 updateBalances ::
      ExchangeMessage -> FeesConf -> Reader MyAccount (HashMap Currency Balance)

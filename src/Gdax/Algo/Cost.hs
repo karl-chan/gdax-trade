@@ -1,25 +1,24 @@
-{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Gdax.Algo.Cost where
 
-import           Gdax.Algo.Action
-import           Gdax.Algo.Types
-import           Gdax.Algo.Util
-import           Gdax.Types.Amount
-import           Gdax.Types.Bundle
-import           Gdax.Types.OrderBook         as Book
-import           Gdax.Types.OrderBook.Util
-import           Gdax.Util.Config
-import           Gdax.Util.Config.Fees
-import           Gdax.Util.Logger
-import           Gdax.Util.Math
+import Gdax.Algo.Action
+import Gdax.Algo.Types
+import Gdax.Types.Amount
+import Gdax.Types.Bundle
+import Gdax.Types.OrderBook as Book
+import Gdax.Types.OrderBook.Util
+import Gdax.Util.Config
+import Gdax.Util.Logger
+import Gdax.Util.Math
 
-import           Coinbase.Exchange.Types.Core (Price, Side (Buy, Sell), Size)
+import Coinbase.Exchange.Types.Core (Price, Side(Buy, Sell), Size)
 
-import           Control.Monad.Reader
-import           Prelude                      hiding (product)
+import Control.Monad.Reader
+import Data.HashMap ((!))
+import Prelude hiding (product)
 
 calculateCost :: CostCalculator
 calculateCost actions = do
@@ -33,17 +32,17 @@ calculateCost actions = do
 
 calculateSingleCost :: Action -> ReaderT Bundle IO Cost
 calculateSingleCost action = do
-  feesConfig <- reader $ feesConf . config
+  Bundle {..} <- ask
   case action of
     CancelAction {} -> return 0
     NewAction newAction -> do
-      ProductBundle {..} <- extractProductBundle $ product newAction
-      logDebug "Extracted product bundle."
-      let pc = platformCharge newAction feesConfig
-          msc = marketSpreadCost newAction book
+      let book = books ! (product newAction)
+          feesConfig = feesConf config
+          pc = platformCharge newAction feesConfig
+          sc = marketSpreadCost newAction book
       return $
         pureDebug ("Platform charge: " ++ show pc) pc +
-        pureDebug ("Market spread cost: " ++ show msc) msc
+        pureDebug ("Market spread cost: " ++ show sc) sc
 
 -- Cost of currency conversion imposed by platform, as percentage
 platformCharge :: NewAction -> FeesConf -> Cost
@@ -51,9 +50,9 @@ platformCharge newAction feesConfig =
   let useTakerFee = takerFee (product newAction) feesConfig
       useMakerFee = makerFee (product newAction) feesConfig
   in case newAction of
-       Limit {}  -> useTakerFee
+       Limit {} -> useTakerFee
        Market {} -> useMakerFee
-       Stop {}   -> useMakerFee
+       Stop {} -> useMakerFee
 
 -- Cost of spread induced as market taker, as percentage
 marketSpreadCost :: NewAction -> OrderBook -> Cost
@@ -63,7 +62,7 @@ marketSpreadCost action book =
       let OrderBookSummary {..} = getSummary book
           bookItems =
             case side of
-              Buy  -> sortedAsks book
+              Buy -> sortedAsks book
               Sell -> sortedBids book
       in case amount of
            AmountSize tradeSize ->

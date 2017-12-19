@@ -9,6 +9,9 @@ api:
         retry_gap: 10     # 10s if rate limit exceeded
 bundle:
     refresh_rate: 1       # 1s
+strategy:
+    tolerance: 0.01      # 1%
+    scalp_margin_percentile: 0.75   # 75th percentile of average trade size
 log:
     level: debug
 fees:

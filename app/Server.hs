@@ -8,5 +8,5 @@ import           Control.Monad.Reader
 
 main :: IO ()
 main = do
-    config <- getGlobalConfig
-    withGlobalLogging (logConf config) $ runReaderT server config
+  config <- getGlobalConfig
+  withGlobalLogging (logConf config) $ runReaderT server config

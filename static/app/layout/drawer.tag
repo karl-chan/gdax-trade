@@ -4,7 +4,7 @@
             <a class="subheader">Menu</a>
         </li>
         <li each={config.routes} no-reorder>
-            <a href={href} class={class}>
+            <a href={href} class={class} target={target}>
                 <i class="material-icons">{icon}</i>{label}
             </a>
         </li>

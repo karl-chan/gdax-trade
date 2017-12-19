@@ -18,24 +18,28 @@ import           Data.List              hiding (product)
 import           Prelude                hiding (product)
 
 optimise :: Optimiser
-optimise freshPlan = do
+optimise proposal = do
   Bundle {..} <- ask
-  skip <- alreadySatisfied freshPlan
-  let actions =
-        if skip
-          then []
-          else let cancelOpenOrders =
-                     [CancelAction (CancelProduct $ product freshPlan)]
-               in cancelOpenOrders ++ [NewAction freshPlan]
-  mapM roundAction actions
+  skip <- alreadySatisfied proposal
+  revisedActions <-
+    if skip
+      then return []
+      else do
+        roundedActions <- mapM roundAction $ actions proposal
+        return $ [CancelAction CancelAll] ++ roundedActions
+  return proposal {actions = revisedActions}
 
 -- Skip update if fresh plan is identical to unique open order
-alreadySatisfied :: FreshPlan -> ReaderT Bundle IO Bool
-alreadySatisfied freshPlan = do
+alreadySatisfied :: Proposal -> ReaderT Bundle IO Bool
+alreadySatisfied proposal = do
   Bundle {..} <- ask
-  let openOrders = findAllOrders account
-  case openOrders of
-    [MyOrder {action = NewAction newAction}] -> return $ newAction == freshPlan
+  case actions proposal of
+    [NewAction newAction] -> do
+      let openOrders = findAllOrders account
+      case openOrders of
+        [MyOrder {action = NewAction existingNewAction}] ->
+          return $ existingNewAction == newAction
+        _ -> return False
     _ -> return False
 
 roundAction :: Action -> ReaderT Bundle IO Action

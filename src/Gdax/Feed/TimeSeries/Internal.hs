@@ -30,7 +30,6 @@ import           Control.Exception                  (SomeException, catch)
 import           Control.Monad                      (void)
 import           Control.Monad.Reader
 import           Data.List                          (insert)
-import qualified Data.Map                           as Map
 import           Data.Maybe                         (maybe)
 import           Data.Time.Clock                    (addUTCTime, diffUTCTime,
                                                      getCurrentTime)
@@ -143,7 +142,7 @@ queueToStat queue =
 
 fromCandles :: [Candle] -> Granularity -> Product -> TimeSeries
 fromCandles candles granularity product =
-  Map.fromList $ map toKeyValue $ frontSeries ++ [lastSeries]
+  TS.statsToSeries $ frontSeries ++ [lastSeries]
   where
     frontSeries = zipWith fromNeighbouringCandles candles $ tail candles
     lastSeries = fromCandle (last candles) granularity
@@ -160,7 +159,6 @@ fromCandles candles granularity product =
       }
     fromNeighbouringCandles candle@(Candle s _ _ _ _ _) (Candle e _ _ _ _ _) =
       fromCandle candle $ diffUTCTime e s
-    toKeyValue stat = (start stat, stat)
 
 initialStat :: ExchangeMessage -> Stat
 initialStat Match {..} =

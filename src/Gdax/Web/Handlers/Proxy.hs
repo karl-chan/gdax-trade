@@ -61,6 +61,7 @@ gdaxRequest ::
   -> Maybe Text
   -> IO (Either SomeException (ResponseHeaders, ByteString))
 gdaxRequest conf method endpoint maybePayload = do
+  logDebug $ show maybePayload
   handle (\e -> return $ Left e) $
     execExchange conf $ do
       res <- coinbaseRequest method True endpoint maybePayload
@@ -78,4 +79,6 @@ decodeParams params =
         maybe (error "Missing endpoint in request body!") cs $
         Map.lookup "endpoint" paramMap
       maybePayload = cs <$> Map.lookup "payload" paramMap
-  in pureInfo (show paramMap) (method, endpoint, maybePayload)
+  in pureInfo
+       ("Decoded params: " ++ show paramMap)
+       (method, endpoint, maybePayload)

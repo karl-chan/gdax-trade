@@ -26,10 +26,11 @@ library
                      , Gdax.Algo.Executor
                      , Gdax.Algo.Master
                      , Gdax.Algo.Optimiser
-                     , Gdax.Algo.Strategy.Spread
-                     , Gdax.Algo.Strategy.TurningPoints
+                     , Gdax.Algo.Strategy
+                     , Gdax.Algo.Strategy.Momentum
+                     , Gdax.Algo.Strategy.Scalping
+                     , Gdax.Algo.Strategy.SupportResistance
                      , Gdax.Algo.Types
-                     , Gdax.Algo.Util
                      , Gdax.Feed.Bundle
                      , Gdax.Feed.Bundle.Types
                      , Gdax.Feed.Gdax
@@ -37,9 +38,11 @@ library
                      , Gdax.Feed.MyAccount
                      , Gdax.Feed.OrderBook
                      , Gdax.Feed.TimeSeries
+                     , Gdax.Feed.Trades
                      , Gdax.Feed.MyAccount.Types
                      , Gdax.Feed.OrderBook.Types
                      , Gdax.Feed.TimeSeries.Types
+                     , Gdax.Feed.Trades.Types
                      , Gdax.Types.Amount
                      , Gdax.Types.Bundle
                      , Gdax.Types.Currency
@@ -48,7 +51,13 @@ library
                      , Gdax.Types.Product
                      , Gdax.Types.TimeSeries
                      , Gdax.Types.TimeSeries.Util
+                     , Gdax.Types.Trades
                      , Gdax.Util.Config
+                     , Gdax.Util.Config.Api
+                     , Gdax.Util.Config.Api.Throttle
+                     , Gdax.Util.Config.Fees
+                     , Gdax.Util.Config.Log
+                     , Gdax.Util.Config.Server
                      , Gdax.Util.Feed
                      , Gdax.Util.Logger
                      , Gdax.Util.Math
@@ -63,10 +72,9 @@ library
                      , Gdax.Feed.MyAccount.Internal.Order
                      , Gdax.Feed.OrderBook.Internal
                      , Gdax.Feed.TimeSeries.Internal
-                     , Gdax.Util.Config.Env
-                     , Gdax.Util.Config.Fees
-                     , Gdax.Util.Config.Log
-                     , Gdax.Util.Config.Yaml
+                     , Gdax.Feed.Trades.Internal
+                     , Gdax.Util.Config.Internal.Env
+                     , Gdax.Util.Config.Internal.Yaml
                      , Gdax.Web.Handlers.Proxy
                      , Gdax.Web.Handlers.Stream
                      , Gdax.Web.Routes
@@ -78,7 +86,6 @@ library
                      , conduit-extra
                      , containers
                      , deepseq
-                     , either
                      , fast-logger
                      , filepath
                      , hashable

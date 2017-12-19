@@ -1,46 +1,45 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Gdax.Util.Config where
+module Gdax.Util.Config
+  ( module Gdax.Util.Config
+  , module Gdax.Util.Config.Api
+  , module Gdax.Util.Config.Api.Throttle
+  , module Gdax.Util.Config.Fees
+  , module Gdax.Util.Config.Log
+  , module Gdax.Util.Config.Server
+  , module Gdax.Util.Config.Strategy
+  ) where
 
-import           Gdax.Types.TimeSeries
-import           Gdax.Util.Config.Env
+import           Gdax.Util.Config.Api
+import           Gdax.Util.Config.Api.Throttle
 import           Gdax.Util.Config.Fees
+import           Gdax.Util.Config.Internal.Env
+import           Gdax.Util.Config.Internal.Yaml as Y
 import           Gdax.Util.Config.Log
-import           Gdax.Util.Config.Yaml
+import           Gdax.Util.Config.Server
+import           Gdax.Util.Config.Strategy
 
 import           Coinbase.Exchange.Types
 
 import           Data.Char
-import           Data.HashMap.Strict     (HashMap)
-import qualified Data.HashMap.Strict     as HM
+import           Data.HashMap.Strict            (HashMap)
+import qualified Data.HashMap.Strict            as HM
 import           Data.Maybe
-import           Data.Time.Clock         (NominalDiffTime)
-import           Data.UUID
-import           Network.HTTP.Client     hiding (port)
+import           Data.Time.Clock
+import           Network.HTTP.Client            hiding (port)
 import           Network.HTTP.Client.TLS
-import           Prelude                 hiding (log, product)
+import           Prelude                        hiding (log, product)
 
 data Config = Config
-  { exchangeConf           :: ExchangeConf
-  , liveExchangeConf       :: ExchangeConf
-  , sandboxExchangeConf    :: ExchangeConf
-  , apiDecimalPlaces       :: Int
-  , apiGranularity         :: Granularity
-  , apiThrottleParallelism :: Int
-  , apiThrottleDataLimit   :: Int
-  , apiThrottleInterval    :: NominalDiffTime
-  , apiThrottleRetryGap    :: NominalDiffTime
-  , bundleRefreshRate      :: NominalDiffTime
-  , serverConf             :: ServerConf
-  , feesConf               :: FeesConf
-  , logConf                :: LogConfig
-  }
-
-data ServerConf = ServerConf
-  { maybeUsername :: Maybe String
-  , maybePassword :: Maybe String
-  , herokuKey     :: UUID
-  , port          :: Int
+  { exchangeConf        :: ExchangeConf
+  , liveExchangeConf    :: ExchangeConf
+  , sandboxExchangeConf :: ExchangeConf
+  , apiConf             :: ApiConf
+  , bundleRefreshRate   :: NominalDiffTime
+  , serverConf          :: ServerConf
+  , strategyConf        :: StrategyConf
+  , feesConf            :: FeesConf
+  , logConf             :: LogConf
   }
 
 getGlobalConfig :: IO Config
@@ -50,25 +49,20 @@ getGlobalConfig = do
   liveExchangeConf <- toExchangeConf Live envConfig
   sandboxExchangeConf <- toExchangeConf Sandbox envConfig
   let exchangeConf =
-        case map toLower (mode . api $ yamlConfig) of
+        case map toLower (Y.mode . api $ yamlConfig) of
           "live" -> liveExchangeConf
           _      -> sandboxExchangeConf
-      serverConf = toServerConf $ server envConfig
   return
     Config
     { exchangeConf = exchangeConf
     , liveExchangeConf = liveExchangeConf
     , sandboxExchangeConf = sandboxExchangeConf
-    , apiDecimalPlaces = (decimalPlaces . api) yamlConfig
-    , apiGranularity = (realToFrac . granularity . api) yamlConfig
-    , apiThrottleParallelism = (parallelism . throttle . api) yamlConfig
-    , apiThrottleDataLimit = (dataLimit . throttle . api) yamlConfig
-    , apiThrottleInterval = (realToFrac . interval . throttle . api) yamlConfig
-    , apiThrottleRetryGap = (realToFrac . retryGap . throttle . api) yamlConfig
-    , bundleRefreshRate = (realToFrac . refreshRate . bundle) yamlConfig
-    , serverConf = serverConf
-    , feesConf = (toFeesConf . fees) yamlConfig
-    , logConf = (toLogConf . log) yamlConfig
+    , apiConf = toApiConf . api $ yamlConfig
+    , bundleRefreshRate = realToFrac . refreshRate . bundle $ yamlConfig
+    , serverConf = toServerConf $ server envConfig
+    , strategyConf = toStrategyConf $ strategy yamlConfig
+    , feesConf = toFeesConf $ fees yamlConfig
+    , logConf = toLogConf $ log yamlConfig
     }
 
 toRunMode :: YamlApiConfig -> ApiType
@@ -88,6 +82,22 @@ toExchangeConf apiType EnvConfig {..} = do
     Left err    -> error err
     Right token -> return $ ExchangeConf mgr (Just token) apiType
 
+toApiConf :: YamlApiConfig -> ApiConf
+toApiConf YamlApiConfig {..} =
+  ApiConf
+  { decimalPlaces = decimalPlaces
+  , granularity = granularity
+  , mode = mode
+  , throttleConf =
+      let YamlThrottleConfig {..} = throttle
+      in ThrottleConf
+         { parallelism = parallelism
+         , dataLimit = dataLimit
+         , interval = realToFrac interval
+         , retryGap = realToFrac retryGap
+         }
+  }
+
 toServerConf :: EnvServerConfig -> ServerConf
 toServerConf EnvServerConfig {..} =
   ServerConf
@@ -97,6 +107,11 @@ toServerConf EnvServerConfig {..} =
   , port = port
   }
 
+toStrategyConf :: YamlStrategyConfig -> StrategyConf
+toStrategyConf YamlStrategyConfig {..} =
+  StrategyConf
+  {tolerance = tolerance, scalpMarginPercentile = scalpMarginPercentile}
+
 toFeesConf :: HashMap String YamlFeeConfig -> FeesConf
 toFeesConf rawFeesConf =
   let transform (k, YamlFeeConfig {..}) =
@@ -104,7 +119,7 @@ toFeesConf rawFeesConf =
         in (product, (maker, taker))
   in HM.fromList . map transform . HM.toList $ rawFeesConf
 
-toLogConf :: YamlLogConfig -> LogConfig
+toLogConf :: YamlLogConfig -> LogConf
 toLogConf YamlLogConfig {..} =
-  LogConfig
+  LogConf
   {logFile = Nothing, enableStderr = True, logLevel = parseLogLevel level}

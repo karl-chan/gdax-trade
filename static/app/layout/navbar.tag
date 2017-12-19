@@ -7,7 +7,7 @@
             </a>
             <ul class="right hide-on-med-and-down" no-reorder>
                 <li each={config.routes}>
-                    <a href={href} class={class}>
+                    <a href={href} class={class} target={target}>
                         <i class="material-icons left">{icon}</i>{label}</a>
                 </li>
             </ul>

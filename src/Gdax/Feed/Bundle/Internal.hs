@@ -48,7 +48,7 @@ streamBundle bookFeedListeners seriesFeedListeners accountFeedListener = do
           series <- readFeed listener
           logDebug $
             "Received multi-series in bundle: " ++ (show . TS.range $ series)
-          let product = TS.getProduct series
+          let product = TS.product series
           atomically $ modifyTVar' multiSeriesTVar (HM.insert product series)
       forkIO . forever $ do
         account <- readFeed accountFeedListener
@@ -82,7 +82,7 @@ initBundle bookFeedListeners seriesFeedListeners = do
   let initialBooksMap =
         HM.fromList $ map (\b -> (bookProduct b, b)) initialBooks
       initialSeriesMap =
-        HM.fromList $ map (\s -> (TS.getProduct s, s)) initialMultiSeries
+        HM.fromList $ map (\s -> (TS.product s, s)) initialMultiSeries
   return
     Bundle
     { account = initialAccount

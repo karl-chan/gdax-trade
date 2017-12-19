@@ -14,6 +14,7 @@ import qualified Coinbase.Exchange.Types.MarketData as CB hiding (Product)
 import           Control.Monad.Reader
 import qualified Data.HashMap.Strict                as HM
 import           Data.List                          (sortOn)
+import           Prelude                            hiding (product)
 
 -- Asks sorted in ascending order of price
 sortedAsks :: OrderBook -> [OrderBookItem]
