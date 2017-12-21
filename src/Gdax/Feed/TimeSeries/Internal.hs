@@ -43,12 +43,12 @@ streamTimeSeries ::
   -> ReaderT Config IO TimeSeriesFeed
 streamTimeSeries startTime product gdaxFeedListener = do
   config <- ask
-  granularity <- reader apiGranularity
+  granularity <- reader $ granularity . apiConf
   liftIO $ do
     tsFeed <- newFeed
     forkIO $ do
       now <- getCurrentTime
-      initialTS <- runReaderT (initialSeries startTime now product) config
+      initialTS <- runReaderT (initSeries startTime now product) config
       logDebug $ "Initialised time series."
       let loop series = do
             writeFeed tsFeed series
@@ -61,14 +61,14 @@ streamTimeSeries startTime product gdaxFeedListener = do
       loop initialTS
     return tsFeed
 
-initialSeries :: StartTime -> EndTime -> Product -> ReaderT Config IO TimeSeries
-initialSeries startTime endTime product = do
+initSeries :: StartTime -> EndTime -> Product -> ReaderT Config IO TimeSeries
+initSeries startTime endTime product = do
   config <- ask
-  granularity <- reader apiGranularity
-  parallelism <- reader apiThrottleParallelism
-  dataLimit <- reader apiThrottleDataLimit
-  throttleInterval <- reader apiThrottleInterval
-  retryGap <- reader apiThrottleRetryGap
+  granularity <- reader $ granularity . apiConf
+  parallelism <- reader $ parallelism . throttleConf . apiConf
+  dataLimit <- reader $ dataLimit . throttleConf . apiConf
+  throttleInterval <- reader $ interval . throttleConf . apiConf
+  retryGap <- reader $ retryGap . throttleConf . apiConf
   let intervalLength = granularity * fromIntegral dataLimit
       boundaries =
         insert endTime $
@@ -86,8 +86,8 @@ initialSeries startTime endTime product = do
 restSeries :: StartTime -> EndTime -> Product -> ReaderT Config IO TimeSeries
 restSeries startTime endTime product = do
   conf <- reader exchangeConf
-  granularity <- reader apiGranularity
-  retryGap <- reader apiThrottleRetryGap
+  granularity <- reader $ granularity . apiConf
+  retryGap <- reader $ retryGap . throttleConf . apiConf
   let productId = toId product
       tryRestSeries =
         catch
