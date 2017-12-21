@@ -4,4 +4,4 @@ packages:
 - '.'
 - location: lib/gdax-haskell
   extra-dep: true
-resolver: nightly-2017-11-24
+resolver: lts-10.0

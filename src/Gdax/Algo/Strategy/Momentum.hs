@@ -16,31 +16,32 @@ import           Gdax.Util.Time
 import           Coinbase.Exchange.Types.Core hiding (Market)
 
 import           Control.Monad.Reader
-import           Data.Maybe
 import           Prelude                      hiding (product)
 
 momentum :: Reader ProductBundle Proposal
 momentum = do
   ProductBundle {..} <- ask
   direction <- identifyDirection
-  let maybeAction =
+  let actions =
         case direction of
           Up ->
-            Just
+            [ NewAction $
               Market
               { side = Buy
               , product = product
               , amount = AmountPrice $ realToFrac $ total balance2
               }
+            ]
           Down ->
-            Just
+            [ NewAction $
               Market
               { side = Sell
               , product = product
               , amount = AmountSize $ realToFrac $ total balance1
               }
-          _ -> Nothing
-  return Proposal {actions = map NewAction $ maybeToList maybeAction}
+            ]
+          _ -> []
+  return Proposal {actions = actions}
 
 -- exceeds 1% over the last hour
 identifyDirection :: Reader ProductBundle Direction

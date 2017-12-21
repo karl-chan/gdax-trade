@@ -7,83 +7,65 @@ module Gdax.Algo.Strategy.Scalping where
 import           Gdax.Account.Balance
 import           Gdax.Algo.Action
 import           Gdax.Algo.Types
-import           Gdax.Types.OrderBook
+import           Gdax.Types.Bundle
+import           Gdax.Types.OrderBook         as OrderBook
 import           Gdax.Types.OrderBook.Util
-import qualified Gdax.Types.TimeSeries.Util as TS
+import           Gdax.Types.TimeSeries
+import qualified Gdax.Types.TimeSeries.Util   as TS
+import           Gdax.Util.Config
 import           Gdax.Util.Logger
-import Gdax.Util.Time
 import           Gdax.Util.Math
+import           Gdax.Util.Time
 
-import           Coinbase.Exchange.Types.Core (Side (..))
+import           Coinbase.Exchange.Types.Core (Price (..), Side (..), Size (..))
 
-import Data.Time.Clock
-import           Control.Monad.Reader
+import           Control.Monad.Reader         hiding (asks)
+import           Data.Time.Clock
 import           Prelude                      hiding (product)
 
-spread :: Price -> Price -> Reader ProductBundle NewAction
-spread resistance support = do
-  ProductBundle {..} <- ask
-  let profitMargin = (resistance - support) `safeDiv` support -- percentage double
-      shouldGamble = profitMargin >= 0.01 -- 1% margin so that costs don't matter
-  if shouldGamble
-    then takeSides resistance support
-    else scalp
-
-takeSides :: Price -> Price -> Reader ProductBundle NewAction
-takeSides resistance support = do
-  ProductBundle {..} <- ask
-  let OrderBookSummary {..} = getSummary book  
-      distanceFromAbove = resistance - midPrice
-      distanceFromBelow = midPrice - support
-  if distanceFromBelow < distanceFromAbove
-    then Market {
-      side = Buy,
-      product = product,
-      amount = AmountPrice $ realToFrac $ total balance2
-    }
-
-scalping :: Reader ProductBundle NewAction
+scalping :: Reader ProductBundle Proposal
 scalping = do
-    ProductBundle {..} <- ask
-    StrategyConf {..} <- reader strategyConfig
-    let OrderBookSummary {..} = getSummary book
-        equivBalance2 = balance1 * midPrice
-        lastStat = TS.last series
-        interval = diffUTC (end lastStat) (start lastStat)
-        percentile (map size trades) 
-        volumePerMinute = volume `safeDiv` (realToFrac $ interval / minute) :: Double
-    (upperTargetPrice, lowerTargetPrice) <- targetScalpPrices volumePerMinute
-    if balance2 > equivBalance2
-        then Limit {
-          side = Buy,
-          product = product,
-          limitPrice = upperTargetPrice,
-          size = balance2
-        } 
-        else Limit {
-            side = Sell,
-            product = product,
-            limitPrice = lowerTargetPrice,
-            size = balance1
-        }
+  ProductBundle {..} <- ask
+  let StrategyConf {..} = strategyConfig
+      OrderBookSummary {..} = getSummary book
+      equivBalance2 = total balance1 * realToFrac midPrice
+      lastStat = TS.last series
+      interval = diffUTCTime (end lastStat) (start lastStat)
+      volumePerMinute =
+        (volume lastStat) `safeDiv` (realToFrac $ interval / minute)
+  (upperTargetPrice, lowerTargetPrice) <- targetScalpPrices volumePerMinute
+  let actions =
+        if total balance2 > equivBalance2
+          then [ NewAction $
+                 Limit
+                 { side = Buy
+                 , product = product
+                 , limitPrice = upperTargetPrice
+                 , size = realToFrac $ total balance2
+                 }
+               ]
+          else [ NewAction $
+                 Limit
+                 { side = Sell
+                 , product = product
+                 , limitPrice = lowerTargetPrice
+                 , size = realToFrac $ total balance1
+                 }
+               ]
+  return Proposal {actions = actions}
 
 targetScalpPrices :: Size -> Reader ProductBundle (Price, Price)
 targetScalpPrices expectedSingleTradeVolume = do
-    ProductBundle {..} <- ask
-    asks <- sortedAsks book
-    bids <- sortedBids book
-    let calcTarget remValue acc bookItems
-        | remValue <= 0 = acc
+  ProductBundle {..} <- ask
+  let asks = sortedAsks book
+      bids = sortedBids book
+      calcTarget remSize acc bookItems
+        | remSize <= 0 = acc
         | [] <- bookItems = acc
-        | (item: items) <- bookItems = calcTarget items (remValue - size item) (price item)
-        f = calcTarget expectedSingleTradeVolume 0
-    return (f asks, f bids)
-           
-        
-
-
-    
-
+        | (item:items) <- bookItems =
+          calcTarget (remSize - OrderBook.size item) (price item) items
+      f = calcTarget expectedSingleTradeVolume 0
+  return (f asks, f bids)
 -- spread :: Strategy
 -- spread product = do
 --   logDebug "Running strategy spread."
