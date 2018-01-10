@@ -1,0 +1,88 @@
+name: gdax-trade
+version: '0.1.0.0'
+category: Web
+author: Karl Chan
+maintainer: karl-chan@github.com
+copyright: 2017 Karl Chan
+license: BSD3
+github: karl-chan/gdax-trade
+extra-source-files:
+- README.md
+ghc-options: -Wall
+dependencies:
+- mtl
+- time
+library:
+  source-dirs: src
+  ghc-options:
+  - -fno-warn-unused-do-bind
+  - -fno-warn-name-shadowing
+  dependencies:
+  - base >=4.7 && <5
+  - coinbase-exchange
+  - aeson
+  - bytestring
+  - conduit
+  - conduit-extra
+  - containers
+  - deepseq
+  - fast-logger
+  - filepath
+  - hashable
+  - http-client
+  - http-client-tls
+  - http-types
+  - pqueue
+  - scientific
+  - split
+  - string-conversions
+  - stm
+  - text
+  - unordered-containers
+  - uuid
+  - wai
+  - wai-app-static
+  - wai-extra
+  - warp
+  - websockets
+  - yaml
+executables:
+  gdax-trade-exe:
+    main: Main.hs
+    source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - gdax-trade
+  gdax-trade-server:
+    main: Server.hs
+    source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - gdax-trade
+tests:
+  gdax-trade-test:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - gdax-trade
+    - coinbase-exchange
+    - pqueue
+    - tasty
+    - tasty-hunit
+    - unordered-containers
+    - uuid
+data-files:
+- config.yaml

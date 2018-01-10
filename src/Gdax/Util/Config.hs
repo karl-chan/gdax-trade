@@ -86,7 +86,7 @@ toApiConf :: YamlApiConfig -> ApiConf
 toApiConf YamlApiConfig {..} =
   ApiConf
   { decimalPlaces = decimalPlaces
-  , granularity = granularity
+  , granularity = realToFrac granularity
   , mode = mode
   , throttleConf =
       let YamlThrottleConfig {..} = throttle

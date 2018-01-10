@@ -27,26 +27,21 @@ supportResistance = do
       turningPoints = identifyTurningPoints series
       direction = statDirection $ TS.last series
   [maybeResistance, maybeSupport] <- mapM nextTurningPoint [Up, Down]
-      maybeAction = case (direction, maybeResistance, maybeSupport) of
-                          (Up, Just resistance, Just support) -> 
+  let actions = 
+                case (direction, maybeResistance, maybeSupport) of
+                      (Up, Just resistance, Just support) ->
                             -- TODO  determine closer to resistance or support
-                            Just Limit {
-                                side = Sell,
-                                product = product,
-                                limitPrice = resistance,
-                                size = realToFrac $ total balance1
-                              }
+                      (Up, Nothing, _) ->
 
-                          (Up, Nothing, _) -> 
-                            Just Market {
-                              side = Buy,
+                      (Down, Just resistance, Just support) ->
+                        
+                      (Down, _, Nothing) -> 
+                          [NewAction $ Market {
+                              side = Sell,
                               product = product,
-                              amount = AmountPrice $ realToFrac . total$ balance2
-                            }
-                          (Down, _, Just support) ->
-                              Just Limit {
-                                side =
-                              }
+                              amount = AmountSize $ realToFrac $ total balance1
+                          }]
+  return $ Proposal actions
 
 
 identifyTurningPoints :: TimeSeries -> Set Price

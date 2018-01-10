@@ -1,10 +1,12 @@
 module Gdax.Util.Config.Api where
 
-import Gdax.Util.Config.Api.Throttle
+import           Gdax.Types.TimeSeries
+
+import           Gdax.Util.Config.Api.Throttle
 
 data ApiConf = ApiConf
   { decimalPlaces :: Int
-  , granularity :: Double
-  , mode :: String
-  , throttleConf :: ThrottleConf
+  , granularity   :: Granularity
+  , mode          :: String
+  , throttleConf  :: ThrottleConf
   }
