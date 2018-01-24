@@ -8,6 +8,7 @@ module Gdax.Util.Config
   , module Gdax.Util.Config.Log
   , module Gdax.Util.Config.Server
   , module Gdax.Util.Config.Strategy
+  , module Gdax.Util.Config.Trades
   ) where
 
 import           Gdax.Util.Config.Api
@@ -18,6 +19,7 @@ import           Gdax.Util.Config.Internal.Yaml as Y
 import           Gdax.Util.Config.Log
 import           Gdax.Util.Config.Server
 import           Gdax.Util.Config.Strategy
+import           Gdax.Util.Config.Trades
 
 import           Coinbase.Exchange.Types
 
@@ -36,7 +38,9 @@ data Config = Config
   , sandboxExchangeConf :: ExchangeConf
   , apiConf             :: ApiConf
   , bundleRefreshRate   :: NominalDiffTime
+  , accountRefreshRate  :: NominalDiffTime
   , serverConf          :: ServerConf
+  , tradesConf          :: TradesConf
   , strategyConf        :: StrategyConf
   , feesConf            :: FeesConf
   , logConf             :: LogConf
@@ -58,8 +62,14 @@ getGlobalConfig = do
     , liveExchangeConf = liveExchangeConf
     , sandboxExchangeConf = sandboxExchangeConf
     , apiConf = toApiConf . api $ yamlConfig
-    , bundleRefreshRate = realToFrac . refreshRate . bundle $ yamlConfig
+    , bundleRefreshRate =
+        let YamlBundleConfig {..} = bundle yamlConfig
+        in realToFrac refreshRate
+    , accountRefreshRate =
+        let YamlAccountConfig {..} = account yamlConfig
+        in realToFrac refreshRate
     , serverConf = toServerConf $ server envConfig
+    , tradesConf = toTradesConf $ trades yamlConfig
     , strategyConf = toStrategyConf $ strategy yamlConfig
     , feesConf = toFeesConf $ fees yamlConfig
     , logConf = toLogConf $ log yamlConfig
@@ -107,10 +117,13 @@ toServerConf EnvServerConfig {..} =
   , port = port
   }
 
+toTradesConf :: YamlTradesConfig -> TradesConf
+toTradesConf YamlTradesConfig {..} =
+  TradesConf {rollingWindow = realToFrac rollingWindow}
+
 toStrategyConf :: YamlStrategyConfig -> StrategyConf
 toStrategyConf YamlStrategyConfig {..} =
-  StrategyConf
-  {tolerance = tolerance, scalpMarginPercentile = scalpMarginPercentile}
+  StrategyConf {tolerance = tolerance, scalpingPercentile = percentile scalping}
 
 toFeesConf :: HashMap String YamlFeeConfig -> FeesConf
 toFeesConf rawFeesConf =

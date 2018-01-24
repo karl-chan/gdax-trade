@@ -4,42 +4,25 @@ module Gdax.Util.Math where
 
 import           Gdax.Types.Amount
 
-import           Coinbase.Exchange.Types.Core
-
 import           Data.List
-import           Data.Scientific
+import           Data.Ord
 
 -- For scientific instances as they will diverge unless converted to double
-safeDiv :: (Real a, Fractional b) => a -> a -> b
+safeDiv :: (Real n1, Real n2, Fractional n) => n1 -> n2 -> n
 safeDiv n1 n2 =
   realToFrac $ (realToFrac n1 :: Double) / (realToFrac n2 :: Double)
 
 average :: (Real a, Fractional a) => [a] -> a
-average xs = (sum xs) `safeDiv` (realToFrac . length $ xs)
+average xs = (sum xs) `safeDiv` (length $ xs)
 
-percentile :: (Real a, Fractional a) => [a] -> Double -> a
-percentile xs pc =
-  let sorted = sort xs
+percentile :: (Ord a) => [a] -> Double -> a
+percentile = percentileBy id
+
+percentileBy :: (Ord b) => (a -> b) -> [a] -> Double -> a
+percentileBy fn xs pc =
+  let sorted = sortBy (comparing fn) xs
       item = floor $ pc / 100 * (realToFrac $ length xs)
   in sorted !! item
-
--- For rounding down (floor) of scientific types
-roundCoin :: Int -> CoinScientific -> CoinScientific
-roundCoin dp CoinScientific {..} =
-  CoinScientific $
-  normalize $ scientific (floor $ (10 ^ dp) * unCoinScientific) (-dp)
-
-roundPrice :: Int -> Price -> Price
-roundPrice dp Price {..} = Price $ roundCoin dp unPrice
-
-roundSize :: Int -> Size -> Size
-roundSize dp Size {..} = Size $ roundCoin dp unSize
-
-roundAmount :: Int -> Amount -> Amount
-roundAmount dp amount =
-  case amount of
-    AmountPrice price -> AmountPrice $ roundPrice dp price
-    AmountSize size   -> AmountSize $ roundSize dp size
 
 -- For rough comparison due to rounding dp requirement by GDAX
 roughlyEqual :: Real a => a -> a -> Bool

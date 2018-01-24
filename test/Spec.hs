@@ -1,5 +1,3 @@
-module Main where
-
 import qualified Gdax.Algo.Cost.Test       as Cost
 import qualified Gdax.Feed.OrderBook.Test  as OrderBookFeed
 import qualified Gdax.Feed.TimeSeries.Test as TimeSeries

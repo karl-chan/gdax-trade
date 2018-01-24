@@ -5,18 +5,27 @@ import           Gdax.Feed.Bundle.Types
 import           Gdax.Feed.MyAccount.Types
 import           Gdax.Feed.OrderBook.Types
 import           Gdax.Feed.TimeSeries.Types
+import           Gdax.Feed.Trades.Types
+import           Gdax.Types.Product
 import           Gdax.Util.Config
 import           Gdax.Util.Feed
 
 import           Control.Monad.Reader
+import           Data.HashMap.Strict        (HashMap)
 
 newBundleFeed ::
-     [OrderBookFeed]
-  -> [TimeSeriesFeed]
-  -> MyAccountFeed
+     MyAccountFeed
+  -> HashMap Product OrderBookFeed
+  -> HashMap Product TimeSeriesFeed
+  -> HashMap Product TradesFeed
   -> ReaderT Config IO BundleFeed
-newBundleFeed bookFeeds seriesFeeds accountFeed = do
+newBundleFeed accountFeed bookFeeds seriesFeeds tradesFeeds = do
+  accountFeedListener <- liftIO $ newFeedListener accountFeed
   bookFeedListeners <- liftIO $ mapM newFeedListener bookFeeds
   seriesFeedListeners <- liftIO $ mapM newFeedListener seriesFeeds
-  accountFeedListener <- liftIO $ newFeedListener accountFeed
-  streamBundle bookFeedListeners seriesFeedListeners accountFeedListener
+  tradesFeedListeners <- liftIO $ mapM newFeedListener tradesFeeds
+  streamBundle
+    accountFeedListener
+    bookFeedListeners
+    seriesFeedListeners
+    tradesFeedListeners

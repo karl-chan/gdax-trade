@@ -15,7 +15,7 @@ import           Control.Monad.Reader
 import           Prelude                       hiding (product)
 
 newTimeSeriesFeed ::
-     GdaxFeed -> StartTime -> Product -> ReaderT Config IO TimeSeriesFeed
-newTimeSeriesFeed gdaxFeed startTime product = do
+     StartTime -> GdaxFeed -> Product -> ReaderT Config IO TimeSeriesFeed
+newTimeSeriesFeed startTime gdaxFeed product = do
   gdaxFeedListener <- liftIO . newFeedListener $ gdaxFeed
   streamTimeSeries startTime product gdaxFeedListener

@@ -1,29 +1,31 @@
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE RecordWildCards    #-}
 
 module Gdax.Types.Product where
 
-import Gdax.Types.Currency hiding (safeRead)
+import           Gdax.Types.Currency          hiding (safeRead)
 
-import Coinbase.Exchange.Types.Core (ProductId(..))
+import           Coinbase.Exchange.Types.Core (ProductId (..))
 
-import Control.DeepSeq (NFData)
-import Data.Char
-import Data.Data (Data)
-import Data.Hashable
-import Data.List.Split
-import Data.String.Conversions
-import GHC.Generics
-import Prelude hiding (product)
-import Text.Read
+import           Control.DeepSeq              (NFData)
+import           Data.Char
+import           Data.Data                    (Data)
+import           Data.Hashable
+import           Data.List.Split
+import           Data.String.Conversions
+import           GHC.Generics
+import           Prelude                      hiding (product)
+import           Text.Read
 
 allProducts :: [Product]
 allProducts =
   [ Pair BTC USD
   , Pair BTC GBP
   , Pair BTC EUR
+  , Pair BCH USD
+  , Pair BCH BTC
   , Pair ETH USD
   , Pair ETH BTC
   , Pair ETH EUR
@@ -51,7 +53,7 @@ instance Read Product where
               Nothing -> []
               Just c2 ->
                 case mkProduct c1 c2 of
-                  Left _ -> []
+                  Left _        -> []
                   Right product -> [(product, "")]
       _ -> []
 
@@ -65,7 +67,7 @@ mkProduct c1 c2 =
 fromId :: ProductId -> Product
 fromId ProductId {..} =
   case safeRead . cs $ unProductId of
-    Left err -> error err
+    Left err      -> error err
     Right product -> product
 
 toId :: Product -> ProductId
@@ -74,7 +76,7 @@ toId product = ProductId $ cs . show $ product
 safeRead :: String -> Either String Product
 safeRead arg =
   case readMaybe arg of
-    Nothing -> Left $ arg ++ " could not be parsed as a product."
+    Nothing      -> Left $ arg ++ " could not be parsed as a product."
     Just product -> Right product
 
 safeReads :: String -> Either String [Product]
@@ -83,6 +85,6 @@ safeReads commaSeparatedArgs =
       readProducts' products [] = Right $ reverse products
       readProducts' acc (arg:rest) =
         case safeRead arg of
-          Left err -> Left err
+          Left err      -> Left err
           Right product -> readProducts' (product : acc) rest
   in readProducts' [] args

@@ -2,17 +2,16 @@
 
 module Gdax.Algo.Master where
 
-import           Gdax.Algo.Cost
 import           Gdax.Algo.Executor
 import           Gdax.Algo.Optimiser
-import           Gdax.Algo.Strategy.Spread
-import           Gdax.Algo.Types
+import           Gdax.Algo.Strategy
 import           Gdax.Feed.Bundle
 import           Gdax.Feed.Bundle.Types
 import           Gdax.Feed.Gdax
 import           Gdax.Feed.MyAccount
 import           Gdax.Feed.OrderBook
 import           Gdax.Feed.TimeSeries
+import           Gdax.Feed.Trades
 import           Gdax.Types.Bundle
 import           Gdax.Types.Product
 import           Gdax.Types.TimeSeries
@@ -21,13 +20,9 @@ import           Gdax.Util.Feed
 
 import           Control.Monad
 import           Control.Monad.Reader
-import           Data.List                 (maximumBy)
-import           Data.Ord
+import qualified Data.HashMap.Strict    as HM
 import           Gdax.Util.Logger
-import           Prelude                   hiding (product)
-
-allStrategies :: [Strategy]
-allStrategies = [spread]
+import           Prelude                hiding (product)
 
 master :: [Product] -> StartTime -> ReaderT Config IO ()
 master products startTime = do
@@ -47,48 +42,27 @@ createBundleFeed :: [Product] -> StartTime -> ReaderT Config IO BundleFeed
 createBundleFeed products startTime = do
   gdaxFeed <- newGdaxFeed products
   logDebug "Created GDAX feed."
-  seriesFeeds <- mapM (newTimeSeriesFeed gdaxFeed startTime) products
-  bookFeeds <- mapM (newOrderBookFeed gdaxFeed) products
-  accountFeed <- newAccountFeed gdaxFeed
+  accountFeed <- newAccountFeed
+  let createMultiFeeds newSingleFeedFn =
+        HM.fromList <$>
+        (forM products $ \product -> do
+           feed <- newSingleFeedFn gdaxFeed product
+           return (product, feed))
+  seriesFeeds <- createMultiFeeds $ newTimeSeriesFeed startTime
+  bookFeeds <- createMultiFeeds $ newOrderBookFeed
+  tradesFeeds <- createMultiFeeds $ newTradesFeed
   logDebug "Created all auxiliary feeds."
-  newBundleFeed bookFeeds seriesFeeds accountFeed
+  newBundleFeed accountFeed bookFeeds seriesFeeds tradesFeeds
 
 trade :: [Product] -> ReaderT Bundle IO ()
-trade products = do
+trade [product] = do
   logDebug "In trade."
-  proposal <- strategy products
+  proposal <- strategy product
   logDebug $ "Computed proposal: " ++ show proposal
   optimisedProposal <- optimise proposal
-  logDebug $ "Optimised proposal: " ++ show proposal
+  logDebug $ "Optimised proposal: " ++ show optimisedProposal
   execute optimisedProposal
   logDebug "Executed optimised proposal"
-  -- proposals <-
-  --   sequence
-  --     [ propose strategy product
-  --     | strategy <- allStrategies
-  --     , product <- products
-  --     ]
-  -- logDebug "Computed proposals."
-  -- let bestProposal = maximumBy (comparing netProfit) proposals
-  -- logDebug $ "Selected best proposal: " ++ show bestProposal
-  -- execute bestProposal
-  -- logDebug "Executed best proposal."
--- propose :: Strategy -> Product -> ReaderT Bundle IO Proposal
--- propose strategy product = do
---   logDebug "Inside propose."
---   StrategyProposal {..} <- strategy product
---   logDebug $ "Calculated strategy proposal."
---   actions <- optimise freshPlan
---   logDebug $ "Optimised actions: " ++ show actions
---   cost <- calculateCost actions
---   logDebug "Calculated cost"
---   let fullProposal =
---         Proposal
---         { description = name
---         , actions = actions
---         , profit = profit
---         , cost = cost
---         , netProfit = profit - cost
---         }
---   logDebug $ "Full proposal: " ++ show fullProposal
---   return fullProposal
+trade products =
+  error $
+  "Only one product is supported at this time, but got: " ++ show products

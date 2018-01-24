@@ -35,10 +35,15 @@ data CancelAction
 
 -- Allow tolerance - compare price / size only up to certain decimal place
 instance Eq NewAction where
-  (==) (Market s1 p1 a1) (Market s2 p2 a2) =
-    s1 == s2 && p1 == p2 && a1 `roughlyEqualAmount` a2
-  (==) (Limit s1 p1 lp1 sz1) (Limit s2 p2 lp2 sz2) =
-    s1 == s2 && p1 == p2 && lp1 `roughlyEqual` lp2 && sz1 `roughlyEqual` sz2
-  (==) (Stop s1 p1 sp1 a1) (Stop s2 p2 sp2 a2) =
-    s1 == s2 && p1 == p2 && sp1 `roughlyEqual` sp2 && a1 `roughlyEqualAmount` a2
+  (==) (Market side1 product1 amount1) (Market side2 product2 amount2) =
+    side1 == side2 &&
+    product1 == product2 && amount1 `roughlyEqualAmount` amount2
+  (==) (Limit side1 product1 limitPrice1 size1) (Limit side2 product2 limitPrice2 size2) =
+    side1 == side2 &&
+    product1 == product2 &&
+    limitPrice1 `roughlyEqual` limitPrice2 && size1 `roughlyEqual` size2
+  (==) (Stop side1 product1 stopPrice1 amount1) (Stop side2 product2 stopPrice2 amount2) =
+    side1 == side2 &&
+    product1 == product2 &&
+    stopPrice1 `roughlyEqual` stopPrice2 && amount1 `roughlyEqualAmount` amount2
   (==) _ _ = False

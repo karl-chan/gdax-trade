@@ -8,14 +8,18 @@ import           Gdax.Account.MyAccount
 import           Gdax.Account.MyOrder
 import           Gdax.Algo.Action
 import           Gdax.Algo.Types
+import           Gdax.Types.Amount
 import           Gdax.Types.Bundle
 import           Gdax.Util.Config
 import           Gdax.Util.Logger
-import           Gdax.Util.Math
+
+import           Coinbase.Exchange.Types.Core (CoinScientific (..), Price (..),
+                                               Size (..))
 
 import           Control.Monad.Reader
-import           Data.List              hiding (product)
-import           Prelude                hiding (product)
+import           Data.List                    hiding (product)
+import           Data.Scientific
+import           Prelude                      hiding (product)
 
 optimise :: Optimiser
 optimise proposal = do
@@ -51,7 +55,7 @@ roundAction action = do
 -- Round action to acceptable decimal places to prevent rejection by GDAX
 roundNewAction :: NewAction -> ReaderT Bundle IO NewAction
 roundNewAction newAction = do
-  dp <- reader $ apiDecimalPlaces . config
+  dp <- reader $ decimalPlaces . apiConf . config
   let roundedNewAction =
         case newAction of
           Market {..} -> newAction {amount = roundAmount dp amount}
@@ -65,3 +69,21 @@ roundNewAction newAction = do
             }
   logDebug $ "Rounded action to: " ++ show roundedNewAction
   return roundedNewAction
+
+roundPrice :: Int -> Price -> Price
+roundPrice dp Price {..} = Price $ roundCoin dp unPrice
+
+roundSize :: Int -> Size -> Size
+roundSize dp Size {..} = Size $ roundCoin dp unSize
+
+roundAmount :: Int -> Amount -> Amount
+roundAmount dp amount =
+  case amount of
+    AmountPrice price -> AmountPrice $ roundPrice dp price
+    AmountSize size   -> AmountSize $ roundSize dp size
+
+-- For rounding down (floor) of scientific types
+roundCoin :: Int -> CoinScientific -> CoinScientific
+roundCoin dp CoinScientific {..} =
+  CoinScientific $
+  normalize $ scientific (floor $ (10 ^ dp) * unCoinScientific) (-dp)

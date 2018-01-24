@@ -13,9 +13,9 @@ import           Gdax.Util.Config
 import           Gdax.Util.Feed
 import           Gdax.Util.Queue
 import           Gdax.Util.Throttle
+import           Gdax.Util.Throttle.Api
 
 import           Coinbase.Exchange.MarketData       (getHistory)
-import           Coinbase.Exchange.Types            (execExchange)
 import           Coinbase.Exchange.Types.Core       (Price (..), Size (..))
 import           Coinbase.Exchange.Types.MarketData (Candle (..))
 import           Coinbase.Exchange.Types.Socket     (ExchangeMessage (Match),
@@ -26,7 +26,6 @@ import           Coinbase.Exchange.Types.Socket     (ExchangeMessage (Match),
 import           Control.Concurrent                 (forkIO)
 import           Control.Concurrent.MVar            (MVar, newMVar, readMVar,
                                                      swapMVar)
-import           Control.Exception                  (SomeException, catch)
 import           Control.Monad                      (void)
 import           Control.Monad.Reader
 import           Data.List                          (insert)
@@ -53,7 +52,7 @@ streamTimeSeries startTime product gdaxFeedListener = do
       let loop series = do
             writeFeed tsFeed series
             stat <- newStat granularity gdaxFeedListener
-            let newSeries = maybe series (TS.insert series) stat
+            let newSeries = maybe series (\s -> TS.insert s series) stat
             logDebug $
               "New stat: " ++
               show stat ++ ". New time series range: " ++ showRange newSeries
@@ -63,53 +62,28 @@ streamTimeSeries startTime product gdaxFeedListener = do
 
 initSeries :: StartTime -> EndTime -> Product -> ReaderT Config IO TimeSeries
 initSeries startTime endTime product = do
-  config <- ask
   granularity <- reader $ granularity . apiConf
-  parallelism <- reader $ parallelism . throttleConf . apiConf
   dataLimit <- reader $ dataLimit . throttleConf . apiConf
-  throttleInterval <- reader $ interval . throttleConf . apiConf
-  retryGap <- reader $ retryGap . throttleConf . apiConf
   let intervalLength = granularity * fromIntegral dataLimit
       boundaries =
         insert endTime $
         takeWhile (< endTime) $
         iterate (addUTCTime $ realToFrac intervalLength) startTime
       intervals = zip boundaries $ tail boundaries
-      tasks =
-        map (\(s, e) -> runReaderT (restSeries s e product) config) intervals
-  multiSeries <-
-    liftIO $ throttle parallelism throttleInterval (Just retryGap) tasks
-  let series = TS.concat multiSeries
+      requests =
+        map
+          (\(start, end) ->
+             getHistory
+               (toId product)
+               (Just start)
+               (Just end)
+               (Just $ floor granularity))
+          intervals
+  candlesChunks <- throttleApi requests
+  let candles = concat candlesChunks
+      series = fromCandles candles granularity product
   logDebug $ "All REST time series received: " ++ showRange series
   return series
-
-restSeries :: StartTime -> EndTime -> Product -> ReaderT Config IO TimeSeries
-restSeries startTime endTime product = do
-  conf <- reader exchangeConf
-  granularity <- reader $ granularity . apiConf
-  retryGap <- reader $ retryGap . throttleConf . apiConf
-  let productId = toId product
-      tryRestSeries =
-        catch
-          (do candles <-
-                execExchange conf $
-                getHistory
-                  productId
-                  (Just startTime)
-                  (Just endTime)
-                  (Just $ floor granularity)
-              let series = fromCandles candles granularity product
-              logDebug $ "REST time series received: " ++ showRange series
-              return series)
-          (\err -> do
-             logDebug $
-               "REST failed for search: " ++
-               showRangeTime startTime endTime ++
-               ", will retry after " ++
-               show retryGap ++ ".\n" ++ show (err :: SomeException)
-             sleep retryGap
-             tryRestSeries)
-  liftIO tryRestSeries
 
 newStat :: Granularity -> GdaxFeedListener -> IO (Maybe Stat)
 newStat granularity gdaxFeedListener = do

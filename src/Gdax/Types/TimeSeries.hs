@@ -34,9 +34,3 @@ type EndTime = UTCTime
 type TimeSeries = Map StartTime Stat
 
 type Granularity = NominalDiffTime
-
-data Direction
-  = Up
-  | Down
-  | None
-  deriving (Eq, Show, Read, Data, Typeable, Generic, NFData)

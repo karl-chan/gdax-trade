@@ -5,18 +5,17 @@ module Gdax.Types.TimeSeries.Util where
 import           Gdax.Types.Product
 import           Gdax.Types.TimeSeries        as TS
 
-import           Coinbase.Exchange.Types.Core (Price (..), Size (..))
+import           Coinbase.Exchange.Types.Core (Price (..))
 
 import           Data.List.Split
 import qualified Data.Map                     as Map
 import           Data.Maybe
-import           Data.Ord                     (Ordering (EQ, GT, LT), compare)
 import           Data.Time.Clock
 import           Prelude                      hiding (head, last, product)
 import qualified Prelude                      as Prelude
 
-insert :: TimeSeries -> Stat -> TimeSeries
-insert series stat = Map.insert (start stat) stat series
+insert :: Stat -> TimeSeries -> TimeSeries
+insert stat series = Map.insert (start stat) stat series
 
 concat :: [TimeSeries] -> TimeSeries
 concat = Map.unions
@@ -59,7 +58,7 @@ downscale series granularity =
       let interval = diffUTCTime end start
           multiplier = floor $ granularity / interval
           groupedStats = chunksOf multiplier $ Map.elems series
-          newStats = mapMaybe combineStats groupedStats
+          newStats = mapMaybe concatStats groupedStats
       in statsToSeries newStats
 
 statsToSeries :: [Stat] -> TimeSeries
@@ -68,16 +67,9 @@ statsToSeries stats = Map.fromList $ map (\s -> (start s, s)) stats
 seriesToStats :: TimeSeries -> [Stat]
 seriesToStats = Map.elems
 
-statDirection :: Stat -> Direction
-statDirection Stat {..} =
-  case compare start end of
-    LT -> Up
-    GT -> Down
-    EQ -> None
-
-combineStats :: [Stat] -> Maybe Stat
-combineStats [] = Nothing
-combineStats stats =
+concatStats :: [Stat] -> Maybe Stat
+concatStats [] = Nothing
+concatStats stats =
   Just
     Stat
     { start = minimum $ map start stats

@@ -1,24 +1,24 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards       #-}
 
 module Gdax.Algo.Cost where
 
-import Gdax.Algo.Action
-import Gdax.Algo.Types
-import Gdax.Types.Amount
-import Gdax.Types.Bundle
-import Gdax.Types.OrderBook as Book
-import Gdax.Types.OrderBook.Util
-import Gdax.Util.Config
-import Gdax.Util.Logger
-import Gdax.Util.Math
+import           Gdax.Algo.Action             as A
+import           Gdax.Algo.Types
+import           Gdax.Types.Amount
+import           Gdax.Types.Bundle
+import           Gdax.Types.OrderBook         as Book
+import           Gdax.Types.OrderBook.Util
+import           Gdax.Util.Config
+import           Gdax.Util.Logger
+import           Gdax.Util.Math
 
-import Coinbase.Exchange.Types.Core (Price, Side(Buy, Sell), Size)
+import           Coinbase.Exchange.Types.Core (Price, Side (Buy, Sell), Size)
 
-import Control.Monad.Reader
-import Data.HashMap ((!))
-import Prelude hiding (product)
+import           Control.Monad.Reader
+import           Data.HashMap.Strict          ((!))
+import           Prelude                      hiding (product)
 
 calculateCost :: CostCalculator
 calculateCost actions = do
@@ -36,7 +36,7 @@ calculateSingleCost action = do
   case action of
     CancelAction {} -> return 0
     NewAction newAction -> do
-      let book = books ! (product newAction)
+      let book = books ! (A.product newAction)
           feesConfig = feesConf config
           pc = platformCharge newAction feesConfig
           sc = marketSpreadCost newAction book
@@ -47,12 +47,12 @@ calculateSingleCost action = do
 -- Cost of currency conversion imposed by platform, as percentage
 platformCharge :: NewAction -> FeesConf -> Cost
 platformCharge newAction feesConfig =
-  let useTakerFee = takerFee (product newAction) feesConfig
-      useMakerFee = makerFee (product newAction) feesConfig
+  let useTakerFee = takerFee (A.product newAction) feesConfig
+      useMakerFee = makerFee (A.product newAction) feesConfig
   in case newAction of
-       Limit {} -> useTakerFee
+       Limit {}  -> useTakerFee
        Market {} -> useMakerFee
-       Stop {} -> useMakerFee
+       Stop {}   -> useMakerFee
 
 -- Cost of spread induced as market taker, as percentage
 marketSpreadCost :: NewAction -> OrderBook -> Cost
@@ -62,7 +62,7 @@ marketSpreadCost action book =
       let OrderBookSummary {..} = getSummary book
           bookItems =
             case side of
-              Buy -> sortedAsks book
+              Buy  -> sortedAsks book
               Sell -> sortedBids book
       in case amount of
            AmountSize tradeSize ->

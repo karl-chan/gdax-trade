@@ -5,7 +5,7 @@
 
 module Gdax.Algo.Executor where
 
-import           Gdax.Algo.Action
+import           Gdax.Algo.Action             as A
 import           Gdax.Algo.Types
 import           Gdax.Types.Amount
 import           Gdax.Types.Bundle
@@ -45,7 +45,7 @@ executeAction action = do
 
 toNewOrder :: NewAction -> Reader Config NewOrder
 toNewOrder newAction = do
-  let productId = toId . product $ newAction
+  let productId = toId . A.product $ newAction
       selfTrade = DecrementAndCancel
       newOrder =
         case newAction of

@@ -1,5 +1,6 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 
 module Gdax.Util.Config.Internal.Yaml where
 
@@ -13,11 +14,13 @@ import           GHC.Generics        (Generic)
 import           Paths_gdax_trade
 
 configLocation :: FilePath
-configLocation = "config.yaml"
+configLocation = "data/config.yaml"
 
 data YamlConfig = YamlConfig
   { api      :: YamlApiConfig
   , bundle   :: YamlBundleConfig
+  , account  :: YamlAccountConfig
+  , trades   :: YamlTradesConfig
   , strategy :: YamlStrategyConfig
   , log      :: YamlLogConfig
   , fees     :: HashMap String YamlFeeConfig
@@ -34,7 +37,7 @@ instance FromJSON YamlApiConfig where
   parseJSON =
     genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
 
-data YamlBundleConfig = YamlBundleConfig
+newtype YamlBundleConfig = YamlBundleConfig
   { refreshRate :: Double
   } deriving (Generic)
 
@@ -42,14 +45,30 @@ instance FromJSON YamlBundleConfig where
   parseJSON =
     genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
 
-data YamlStrategyConfig = YamlStrategyConfig
-  { tolerance             :: Double
-  , scalpMarginPercentile :: Double
+newtype YamlAccountConfig = YamlAccountConfig
+  { refreshRate :: Double
   } deriving (Generic)
 
-instance FromJSON YamlStrategyConfig where
+instance FromJSON YamlAccountConfig where
   parseJSON =
     genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
+
+newtype YamlTradesConfig = YamlTradesConfig
+  { rollingWindow :: Double
+  } deriving (Generic)
+
+instance FromJSON YamlTradesConfig where
+  parseJSON =
+    genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
+
+data YamlStrategyConfig = YamlStrategyConfig
+  { tolerance :: Double
+  , scalping  :: YamlScalpingConfig
+  } deriving (Generic, FromJSON)
+
+newtype YamlScalpingConfig = YamlScalpingConfig
+  { percentile :: Double
+  } deriving (Generic, FromJSON)
 
 data YamlThrottleConfig = YamlThrottleConfig
   { parallelism :: Int

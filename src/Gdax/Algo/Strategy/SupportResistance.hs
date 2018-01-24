@@ -2,47 +2,56 @@
 
 module Gdax.Algo.Strategy.SupportResistance where
 
+import           Gdax.Algo.Signal.Direction
+import           Gdax.Algo.Strategy.Util
 import           Gdax.Algo.Types
 import           Gdax.Types.Bundle
 import           Gdax.Types.OrderBook
 import           Gdax.Types.OrderBook.Util
 import           Gdax.Types.TimeSeries
-import           Gdax.Types.TimeSeries.Util  as TS hiding (product)
+import           Gdax.Types.TimeSeries.Util   as TS hiding (product)
 import           Gdax.Util.Config
 import           Gdax.Util.Time
 
 import           Coinbase.Exchange.Types.Core
 
+import           Control.Monad
 import           Control.Monad.Reader
 import           Data.List                    (find)
+import           Data.Maybe                   (maybeToList)
 import           Data.Set                     (Set)
 import qualified Data.Set                     as Set
 import           Prelude                      hiding (product)
-import Control.Monad
 
 supportResistance :: Reader ProductBundle Proposal
 supportResistance = do
   ProductBundle {..} <- ask
   let StrategyConf {..} = strategyConfig
-      turningPoints = identifyTurningPoints series
-      direction = statDirection $ TS.last series
+      OrderBookSummary {..} = getSummary book
+  direction <- getDirection
   [maybeResistance, maybeSupport] <- mapM nextTurningPoint [Up, Down]
-  let actions = 
-                case (direction, maybeResistance, maybeSupport) of
-                      (Up, Just resistance, Just support) ->
-                            -- TODO  determine closer to resistance or support
-                      (Up, Nothing, _) ->
-
-                      (Down, Just resistance, Just support) ->
-                        
-                      (Down, _, Nothing) -> 
-                          [NewAction $ Market {
-                              side = Sell,
-                              product = product,
-                              amount = AmountSize $ realToFrac $ total balance1
-                          }]
-  return $ Proposal actions
-
+  maybeAction <-
+    case (direction, maybeResistance, maybeSupport) of
+      (Up, Nothing, _) -> Just <$> marketBuy -- Skyrocket
+      (Up, Just resistance, Just support) -> do
+        let d = resistance - support
+            supportZone = support + d / 3
+        case () of
+          _
+            | midPrice < supportZone -> Just <$> marketBuy
+            | otherwise -> Just <$> limitSell resistance
+      (Down, _, Nothing) -> Just <$> marketSell -- Plummet
+      (Down, Just resistance, Just support) -> do
+        let d = resistance - support
+            resistanceZone = resistance - d / 3
+            supportZone = support + d / 3
+        case () of
+          _
+            | midPrice > resistanceZone -> Just <$> limitSell resistanceZone
+            | midPrice < supportZone -> Just <$> limitSell supportZone
+            | otherwise -> Just <$> marketSell
+      _ -> return Nothing
+  return $ Proposal $ maybeToList maybeAction
 
 identifyTurningPoints :: TimeSeries -> Set Price
 identifyTurningPoints series =
@@ -54,7 +63,12 @@ identifyTurningPoints series =
 -- assume continuous, output points preserve input series temporal ordering
 identifyTurningPointsFromStats :: [Stat] -> [Price]
 identifyTurningPointsFromStats (x:y:ys) =
-  let maybeTurningPoint =
+  let statDirection Stat {..} =
+        case compare start end of
+          LT -> Up
+          GT -> Down
+          EQ -> None
+      maybeTurningPoint =
         case (statDirection x, statDirection y) of
           (Up, Down) -> Just $ high x
           (Down, Up) -> Just $ low x

@@ -1,5 +1,3 @@
-module Main where
-
 import           Gdax.Util.Config
 import           Gdax.Util.Logger
 import           Gdax.Web.Server
