@@ -9,15 +9,16 @@ github: karl-chan/gdax-trade
 extra-source-files:
 - README.md
 data-files: data/config.yaml
-ghc-options: -Wall -Werror
+ghc-options:
+- -Wall
+- -Werror
+- -fno-warn-unused-do-bind
+- -fno-warn-name-shadowing
 dependencies:
 - mtl
 - time
 library:
   source-dirs: src
-  ghc-options:
-  - -fno-warn-unused-do-bind
-  - -fno-warn-name-shadowing
   dependencies:
   - base >=4.7 && <5
   - coinbase-exchange
@@ -83,6 +84,7 @@ tests:
     - base
     - gdax-trade
     - coinbase-exchange
+    - containers
     - pqueue
     - tasty
     - tasty-hunit

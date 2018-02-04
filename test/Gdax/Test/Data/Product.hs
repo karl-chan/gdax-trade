@@ -1,4 +1,4 @@
-module Gdax.Types.Product.Test where
+module Gdax.Test.Data.Product where
 
 import           Gdax.Types.Currency
 import           Gdax.Types.Product

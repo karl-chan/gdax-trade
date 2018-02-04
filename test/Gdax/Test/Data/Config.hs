@@ -1,4 +1,4 @@
-module Gdax.Util.Config.Test where
+module Gdax.Test.Data.Config where
 
 import           Gdax.Util.Config
 

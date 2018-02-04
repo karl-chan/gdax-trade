@@ -2,6 +2,12 @@ module Gdax.Util.Time where
 
 import           Data.Time.Clock
 
+type StartTime = UTCTime
+
+type EndTime = UTCTime
+
+type Granularity = NominalDiffTime
+
 second :: NominalDiffTime
 second = 1
 

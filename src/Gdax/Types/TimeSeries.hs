@@ -5,6 +5,7 @@
 module Gdax.Types.TimeSeries where
 
 import           Gdax.Types.Product
+import           Gdax.Util.Time
 
 import           Coinbase.Exchange.Types.Core (Price (..), Size (..))
 
@@ -27,10 +28,4 @@ data Stat = Stat
   , product :: Product
   } deriving (Eq, Show, Data, Typeable, Generic, NFData)
 
-type StartTime = UTCTime
-
-type EndTime = UTCTime
-
 type TimeSeries = Map StartTime Stat
-
-type Granularity = NominalDiffTime

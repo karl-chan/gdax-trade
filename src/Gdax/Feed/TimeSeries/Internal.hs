@@ -5,15 +5,14 @@ module Gdax.Feed.TimeSeries.Internal where
 import           Gdax.Feed.Gdax.Types
 import           Gdax.Feed.TimeSeries.Types
 import           Gdax.Types.Product
-import           Gdax.Types.TimeSeries              (EndTime, Granularity,
-                                                     StartTime, Stat (..),
-                                                     TimeSeries)
+import           Gdax.Types.TimeSeries              (Stat (..), TimeSeries)
 import qualified Gdax.Types.TimeSeries.Util         as TS
 import           Gdax.Util.Config
 import           Gdax.Util.Feed
 import           Gdax.Util.Queue
 import           Gdax.Util.Throttle
 import           Gdax.Util.Throttle.Api
+import           Gdax.Util.Time
 
 import           Coinbase.Exchange.MarketData       (getHistory)
 import           Coinbase.Exchange.Types.Core       (Price (..), Size (..))

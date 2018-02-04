@@ -4,6 +4,7 @@ module Gdax.Types.TimeSeries.Util where
 
 import           Gdax.Types.Product
 import           Gdax.Types.TimeSeries        as TS
+import           Gdax.Util.Time
 
 import           Coinbase.Exchange.Types.Core (Price (..))
 

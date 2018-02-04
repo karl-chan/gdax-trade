@@ -14,9 +14,9 @@ import           Gdax.Feed.TimeSeries
 import           Gdax.Feed.Trades
 import           Gdax.Types.Bundle
 import           Gdax.Types.Product
-import           Gdax.Types.TimeSeries
 import           Gdax.Util.Config
 import           Gdax.Util.Feed
+import           Gdax.Util.Time
 
 import           Control.Monad
 import           Control.Monad.Reader

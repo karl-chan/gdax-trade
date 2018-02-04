@@ -1,20 +1,9 @@
-import qualified Gdax.Algo.Cost.Test       as Cost
-import qualified Gdax.Feed.OrderBook.Test  as OrderBookFeed
-import qualified Gdax.Feed.TimeSeries.Test as TimeSeries
-import           Gdax.Types.Bundle
-import           Gdax.Types.Bundle.Test
-import           Gdax.Types.TimeSeries
-
-import           Control.Monad
-import           Control.Monad.Reader
-import           System.IO.Unsafe
+import qualified Gdax.Test.Integration as Integration
+import qualified Gdax.Test.Unit        as Unit
 import           Test.Tasty
 
 main :: IO ()
-main = defaultMain . unsafePerformIO $ runReaderT tests testBundle
+main = defaultMain tests
 
-tests :: ReaderT Bundle IO TestTree
-tests =
-  liftM2 testGroup (return "All tests") $
-  sequence [Cost.tests, OrderBookFeed.tests]
---        TimeSeries.test granularity product gdaxFeed config]
+tests :: TestTree
+tests = testGroup "All tests" [Unit.tests, Integration.tests]

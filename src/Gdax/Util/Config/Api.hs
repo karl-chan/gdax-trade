@@ -1,8 +1,7 @@
 module Gdax.Util.Config.Api where
 
-import           Gdax.Types.TimeSeries
-
 import           Gdax.Util.Config.Api.Throttle
+import           Gdax.Util.Time
 
 data ApiConf = ApiConf
   { decimalPlaces :: Int

@@ -7,9 +7,9 @@ import           Gdax.Feed.Gdax.Types
 import           Gdax.Feed.TimeSeries.Internal
 import           Gdax.Feed.TimeSeries.Types
 import           Gdax.Types.Product
-import           Gdax.Types.TimeSeries         hiding (product)
 import           Gdax.Util.Config
 import           Gdax.Util.Feed
+import           Gdax.Util.Time
 
 import           Control.Monad.Reader
 import           Prelude                       hiding (product)

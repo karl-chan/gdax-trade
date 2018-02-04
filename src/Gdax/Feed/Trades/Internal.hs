@@ -11,6 +11,7 @@ import           Gdax.Util.Config
 import           Gdax.Util.Feed
 import           Gdax.Util.Logger
 import           Gdax.Util.Throttle.Api
+import           Gdax.Util.Time
 
 import           Coinbase.Exchange.MarketData   (getTradesPaginated, tradePrice,
                                                  tradeSide, tradeSize,
@@ -29,25 +30,25 @@ import           Prelude                        hiding (product)
 streamTrades :: Product -> GdaxFeedListener -> ReaderT Config IO TradesFeed
 streamTrades product gdaxFeedListener = do
   config <- ask
+  window <- reader $ rollingWindow . tradesConf
+  now <- liftIO getCurrentTime
   liftIO $ do
     tradesFeed <- newFeed
     forkIO $ do
-      initialTrades <- runReaderT (initTrades product) config
+      let startTime = addUTCTime (-window) now
+      initialTrades <- runReaderT (initTrades startTime product) config
       logDebug $ "Initialised trades."
       let loop trades = do
             writeFeed tradesFeed trades
             exchangeMsg <- readFeed gdaxFeedListener
-            let newTrades = updateTrades trades exchangeMsg
+            newTrades <- runReaderT (updateTrades trades exchangeMsg) config
             loop newTrades
       loop initialTrades
     return tradesFeed
 
-initTrades :: Product -> ReaderT Config IO Trades
-initTrades product = do
-  window <- reader $ rollingWindow . tradesConf
-  now <- liftIO getCurrentTime
+initTrades :: StartTime -> Product -> ReaderT Config IO Trades
+initTrades startTime product = do
   let productId = toId product
-      startTime = addUTCTime (-window) now
       terminateCondition rawTrades =
         null rawTrades || tradeTime (last rawTrades) <= startTime
   allRawTrades <-
@@ -57,9 +58,12 @@ initTrades product = do
   let trades = Trades.listToTrades $ map (fromRawTrade product) rawTrades
   return trades
 
-updateTrades :: Trades -> ExchangeMessage -> Trades
-updateTrades trades Match {..} =
-  let newTrade =
+updateTrades :: Trades -> ExchangeMessage -> ReaderT Config IO Trades
+updateTrades trades Match {..} = do
+  window <- reader $ rollingWindow . tradesConf
+  now <- liftIO getCurrentTime
+  let cutoff = addUTCTime (-window) now
+      newTrade =
         Trade
         { time = msgTime
         , product = fromId msgProductId
@@ -67,8 +71,9 @@ updateTrades trades Match {..} =
         , size = msgSize
         , price = msgPrice
         }
-  in Trades.insert newTrade trades
-updateTrades trades _ = trades
+      recentTrades = Trades.dropBefore cutoff trades
+  return $ Trades.insert newTrade recentTrades
+updateTrades trades _ = return trades
 
 fromRawTrade :: Product -> CB.Trade -> Trade
 fromRawTrade product CB.Trade {..} =

@@ -16,3 +16,6 @@ listToTrades list = Map.fromList $ map (\trade -> (time trade, trade)) list
 
 tradesToList :: Trades -> [Trade]
 tradesToList = Map.elems
+
+dropBefore :: UTCTime -> Trades -> Trades
+dropBefore cutoffTime = Map.dropWhileAntitone (< cutoffTime)
