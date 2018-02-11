@@ -16,10 +16,10 @@ import           Test.Tasty.HUnit
 
 tests :: TestTree
 tests = do
-  testGroup "Trades" [testRange]
+  testGroup "Trades" [test]
 
-testRange :: TestTree
-testRange =
+test :: TestTree
+test =
   testCase "should span across rolling window" $ do
     now <- getCurrentTime
     tradesFeed <- runReaderT (newTradesFeed testGdaxFeed testProduct) testConfig

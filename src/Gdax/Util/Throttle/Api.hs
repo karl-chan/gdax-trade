@@ -27,11 +27,11 @@ throttlePaginatedApi request terminatingCondition = do
   let loop pagination acc = do
         (result, paginationResult) <- execExchange conf $ request pagination
         if terminatingCondition result
-          then return acc
+          then return (result : acc)
           else do
             sleep interval
             let nextPagination =
-                  Pagination {before = before paginationResult, after = Nothing}
-            logDebug $ "Next pagination: " ++ (show $ before nextPagination)
+                  Pagination {before = Nothing, after = after paginationResult}
+            logDebug $ "Next pagination: " ++ (show $ after nextPagination)
             loop nextPagination (result : acc)
   liftIO $ loop nullPagination []

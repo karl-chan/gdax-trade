@@ -17,13 +17,12 @@ import           Coinbase.Exchange.MarketData   (getTradesPaginated, tradePrice,
                                                  tradeSide, tradeSize,
                                                  tradeTime)
 import qualified Coinbase.Exchange.MarketData   as CB
-import           Coinbase.Exchange.Types.Socket (ExchangeMessage (Match),
-                                                 msgMakerOrderId, msgPrice,
-                                                 msgProductId, msgSequence,
-                                                 msgSide, msgSize, msgTime)
+import           Coinbase.Exchange.Types.Socket
 
 import           Control.Concurrent             (forkIO)
 import           Control.Monad.Reader
+import           Data.List                      (sortBy)
+import           Data.Ord                       (comparing)
 import           Data.Time.Clock
 import           Prelude                        hiding (product)
 
@@ -36,7 +35,7 @@ streamTrades product gdaxFeedListener = do
     tradesFeed <- newFeed
     forkIO $ do
       let startTime = addUTCTime (-window) now
-      initialTrades <- runReaderT (initTrades startTime product) config
+      initialTrades <- runReaderT (initialiseTrades startTime product) config
       logDebug $ "Initialised trades."
       let loop trades = do
             writeFeed tradesFeed trades
@@ -46,16 +45,16 @@ streamTrades product gdaxFeedListener = do
       loop initialTrades
     return tradesFeed
 
-initTrades :: StartTime -> Product -> ReaderT Config IO Trades
-initTrades startTime product = do
+initialiseTrades :: StartTime -> Product -> ReaderT Config IO Trades
+initialiseTrades startTime product = do
   let productId = toId product
       terminateCondition rawTrades =
         null rawTrades || tradeTime (last rawTrades) <= startTime
   allRawTrades <-
     throttlePaginatedApi (getTradesPaginated productId) terminateCondition
   let rawTrades = concat allRawTrades
-  logDebug $ "Received all REST trades: " ++ show rawTrades
-  let trades = Trades.listToTrades $ map (fromRawTrade product) rawTrades
+  let trades = sortBy (comparing tradeId) $ map (fromRawTrade product) rawTrades
+  logDebug $ "Received all REST trades: " ++ Trades.showRange trades
   return trades
 
 updateTrades :: Trades -> ExchangeMessage -> ReaderT Config IO Trades
@@ -66,6 +65,7 @@ updateTrades trades Match {..} = do
       newTrade =
         Trade
         { time = msgTime
+        , tradeId = msgTradeId
         , product = fromId msgProductId
         , side = msgSide
         , size = msgSize
@@ -79,6 +79,7 @@ fromRawTrade :: Product -> CB.Trade -> Trade
 fromRawTrade product CB.Trade {..} =
   Trade
   { time = tradeTime
+  , tradeId = tradeTradeId
   , product = product
   , side = tradeSide
   , size = tradeSize

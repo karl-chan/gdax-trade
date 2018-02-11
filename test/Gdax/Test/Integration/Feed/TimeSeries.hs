@@ -18,7 +18,7 @@ import           Test.Tasty
 import           Test.Tasty.HUnit
 
 tests :: TestTree
-tests = testGroup "Time Series" [testSync]
+tests = testGroup "Time Series" [test]
 
 -- Shorten initial period to 1 hour to save loading time for testing
 overrideConfig :: Config -> Config
@@ -27,8 +27,8 @@ overrideConfig config =
   in config
      {timeSeriesConf = TimeSeriesConf {initialPeriod = initialPeriodOverride}}
 
-testSync :: TestTree
-testSync = do
+test :: TestTree
+test = do
   let syncDelay = 5 :: NominalDiffTime -- 5 seconds
   testCase "should sync with GDAX implementation (takes 5 seconds)" $ do
     tsFeed <-

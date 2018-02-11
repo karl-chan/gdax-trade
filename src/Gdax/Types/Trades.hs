@@ -10,15 +10,15 @@ import           Coinbase.Exchange.Types.Core
 
 import           Control.DeepSeq              (NFData)
 import           Data.Data                    (Data)
-import           Data.Map                     (Map)
 import           Data.Time.Clock
 import           Data.Typeable                (Typeable)
 import           GHC.Generics                 (Generic)
 
-type Trades = Map UTCTime Trade
+type Trades = [Trade]
 
 data Trade = Trade
   { time    :: UTCTime
+  , tradeId :: TradeId
   , product :: Product
   , side    :: Side
   , size    :: Size

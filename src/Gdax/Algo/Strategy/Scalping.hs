@@ -17,7 +17,6 @@ import           Gdax.Util.Math
 import           Coinbase.Exchange.Types.Core (Price, Size)
 
 import           Control.Monad.Reader         hiding (asks)
-import qualified Data.Map                     as Map
 import           Prelude                      hiding (product)
 
 scalping :: Reader ProductBundle Proposal
@@ -25,7 +24,7 @@ scalping = do
   ProductBundle {..} <- ask
   let StrategyConf {..} = strategyConfig
       OrderBookSummary {..} = getSummary book
-      tradeSizes = map Trade.size $ Map.elems trades
+      tradeSizes = map Trade.size trades
       targetSingleTradeSize = percentile tradeSizes scalpingPercentile
   (upperTargetPrice, lowerTargetPrice) <-
     targetScalpPrices targetSingleTradeSize

@@ -22,10 +22,10 @@ import           Test.Tasty
 import           Test.Tasty.HUnit
 
 tests :: TestTree
-tests = testGroup "Order book" $ [testSync]
+tests = testGroup "Order book" $ [test]
 
-testSync :: TestTree
-testSync = do
+test :: TestTree
+test = do
   let syncDelay = 5 :: NominalDiffTime -- 5 seconds
   testCase "should sync with GDAX implementation (takes 5 seconds)" $ do
     bookFeed <-
