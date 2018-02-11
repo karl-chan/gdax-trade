@@ -17,14 +17,19 @@ configLocation :: FilePath
 configLocation = "data/config.yaml"
 
 data YamlConfig = YamlConfig
-  { api      :: YamlApiConfig
-  , bundle   :: YamlBundleConfig
-  , account  :: YamlAccountConfig
-  , trades   :: YamlTradesConfig
-  , strategy :: YamlStrategyConfig
-  , log      :: YamlLogConfig
-  , fees     :: HashMap String YamlFeeConfig
-  } deriving (FromJSON, Generic)
+  { api        :: YamlApiConfig
+  , bundle     :: YamlBundleConfig
+  , account    :: YamlAccountConfig
+  , timeSeries :: YamlTimeSeriesConfig
+  , trades     :: YamlTradesConfig
+  , strategy   :: YamlStrategyConfig
+  , log        :: YamlLogConfig
+  , fees       :: HashMap String YamlFeeConfig
+  } deriving (Generic)
+
+instance FromJSON YamlConfig where
+  parseJSON =
+    genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
 
 data YamlApiConfig = YamlApiConfig
   { decimalPlaces :: Int
@@ -50,6 +55,14 @@ newtype YamlAccountConfig = YamlAccountConfig
   } deriving (Generic)
 
 instance FromJSON YamlAccountConfig where
+  parseJSON =
+    genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
+
+newtype YamlTimeSeriesConfig = YamlTimeSeriesConfig
+  { initialPeriod :: Double
+  } deriving (Generic)
+
+instance FromJSON YamlTimeSeriesConfig where
   parseJSON =
     genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
 

@@ -2,7 +2,6 @@ module Gdax.Test.Integration.Feed.Trades where
 
 import           Gdax.Test.Data
 
-import           Gdax.Feed.Gdax
 import           Gdax.Feed.Trades
 import qualified Gdax.Types.Trades.Util as Trades
 import           Gdax.Util.Config
@@ -23,9 +22,9 @@ testRange :: TestTree
 testRange =
   testCase "should span across rolling window" $ do
     now <- getCurrentTime
-    gdaxFeed <- runReaderT (newGdaxFeed [testProduct]) testConfig
-    tradesFeed <- runReaderT (newTradesFeed gdaxFeed testProduct) testConfig
-    initialTrades <- readFeed tradesFeed
+    tradesFeed <- runReaderT (newTradesFeed testGdaxFeed testProduct) testConfig
+    tradesFeedListener <- newFeedListener tradesFeed
+    initialTrades <- readFeed tradesFeedListener
     let (s, e) = Trades.range initialTrades
         margin = 10 * minute
         window = rollingWindow . tradesConf $ testConfig

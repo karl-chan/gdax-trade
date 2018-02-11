@@ -11,6 +11,8 @@ bundle:
     refresh_rate: 1       # 1s    
 account:
     refresh_rate: 0.5    # 0.5s
+time_series:
+    initial_period: 2592000  # 30 days (approx 1 month)
 trades:
     rolling_window: 3600 # Keep only trades for the last hour
 strategy:

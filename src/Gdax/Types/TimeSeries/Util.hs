@@ -15,22 +15,28 @@ import           Data.Time.Clock
 import           Prelude                      hiding (head, last, product)
 import qualified Prelude                      as Prelude
 
+null :: TimeSeries -> Bool
+null = Map.null
+
 insert :: Stat -> TimeSeries -> TimeSeries
 insert stat series = Map.insert (start stat) stat series
 
 concat :: [TimeSeries] -> TimeSeries
 concat = Map.unions
 
-between :: TimeSeries -> StartTime -> EndTime -> TimeSeries
-between series startTime endTime =
+between :: StartTime -> EndTime -> TimeSeries -> TimeSeries
+between startTime endTime series =
   Map.takeWhileAntitone (<= endTime) . Map.dropWhileAntitone (< startTime) $
   series
 
-lookback :: TimeSeries -> NominalDiffTime -> TimeSeries
-lookback series duration =
+lookback :: NominalDiffTime -> TimeSeries -> TimeSeries
+lookback duration series =
   let (_, endTime) = range series
       startTime = addUTCTime (negate duration) endTime
-  in between series startTime endTime
+  in between startTime endTime series
+
+dropBefore :: UTCTime -> TimeSeries -> TimeSeries
+dropBefore startTime = Map.dropWhileAntitone (< startTime)
 
 product :: TimeSeries -> Product
 product series = TS.product . snd $ Map.elemAt 0 series
@@ -46,6 +52,9 @@ open = TS.open . head
 
 close :: TimeSeries -> Price
 close = TS.close . last
+
+find :: UTCTime -> TimeSeries -> Maybe Stat
+find time series = snd <$> Map.lookupGE time series
 
 range :: TimeSeries -> (StartTime, EndTime)
 range series = ((start . head) series, (end . last) series)
@@ -82,3 +91,11 @@ concatStats stats =
     , volume = sum $ map volume stats
     , product = TS.product $ Prelude.head stats
     }
+
+updateLastStat :: (Stat -> Stat) -> TimeSeries -> TimeSeries
+updateLastStat f = Map.updateMax (Just . f)
+
+showRange :: TimeSeries -> String
+showRange series =
+  let (startTime, endTime) = range series
+  in show startTime ++ " - " ++ show endTime

@@ -17,7 +17,7 @@ throttle concurrency interval maybeRetryAfter tasks =
         results <- mapM (maybe id retry maybeRetryAfter) immediateTasks
         logDebug $
           "Task succeeded... sleeping for " ++
-          show interval ++ "s before resuming."
+          show interval ++ " before resuming."
         sleep interval
         loop queueTasks $ acc ++ results
   in loop tasks []

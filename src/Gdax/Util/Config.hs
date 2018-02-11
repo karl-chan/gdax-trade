@@ -8,6 +8,7 @@ module Gdax.Util.Config
   , module Gdax.Util.Config.Log
   , module Gdax.Util.Config.Server
   , module Gdax.Util.Config.Strategy
+  , module Gdax.Util.Config.TimeSeries
   , module Gdax.Util.Config.Trades
   ) where
 
@@ -19,6 +20,7 @@ import           Gdax.Util.Config.Internal.Yaml as Y
 import           Gdax.Util.Config.Log
 import           Gdax.Util.Config.Server
 import           Gdax.Util.Config.Strategy
+import           Gdax.Util.Config.TimeSeries
 import           Gdax.Util.Config.Trades
 
 import           Coinbase.Exchange.Types
@@ -40,6 +42,7 @@ data Config = Config
   , bundleRefreshRate   :: NominalDiffTime
   , accountRefreshRate  :: NominalDiffTime
   , serverConf          :: ServerConf
+  , timeSeriesConf      :: TimeSeriesConf
   , tradesConf          :: TradesConf
   , strategyConf        :: StrategyConf
   , feesConf            :: FeesConf
@@ -69,6 +72,7 @@ getGlobalConfig = do
         let YamlAccountConfig {..} = account yamlConfig
         in realToFrac refreshRate
     , serverConf = toServerConf $ server envConfig
+    , timeSeriesConf = toTimeSeriesConf $ timeSeries yamlConfig
     , tradesConf = toTradesConf $ trades yamlConfig
     , strategyConf = toStrategyConf $ strategy yamlConfig
     , feesConf = toFeesConf $ fees yamlConfig
@@ -116,6 +120,10 @@ toServerConf EnvServerConfig {..} =
   , herokuKey = herokuKey
   , port = port
   }
+
+toTimeSeriesConf :: YamlTimeSeriesConfig -> TimeSeriesConf
+toTimeSeriesConf YamlTimeSeriesConfig {..} =
+  TimeSeriesConf {initialPeriod = realToFrac initialPeriod}
 
 toTradesConf :: YamlTradesConfig -> TradesConf
 toTradesConf YamlTradesConfig {..} =

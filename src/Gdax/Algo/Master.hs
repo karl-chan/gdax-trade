@@ -16,7 +16,6 @@ import           Gdax.Types.Bundle
 import           Gdax.Types.Product
 import           Gdax.Util.Config
 import           Gdax.Util.Feed
-import           Gdax.Util.Time
 
 import           Control.Monad
 import           Control.Monad.Reader
@@ -24,9 +23,9 @@ import qualified Data.HashMap.Strict    as HM
 import           Gdax.Util.Logger
 import           Prelude                hiding (product)
 
-master :: [Product] -> StartTime -> ReaderT Config IO ()
-master products startTime = do
-  bundleFeed <- createBundleFeed products startTime
+master :: [Product] -> ReaderT Config IO ()
+master products = do
+  bundleFeed <- createBundleFeed products
   logDebug "Created bundle feed."
     -- bundle arrives every second (refresh_rate in config)
   liftIO $ do
@@ -38,8 +37,8 @@ master products startTime = do
       logDebug "Received bundle."
       runReaderT (trade products) bundle
 
-createBundleFeed :: [Product] -> StartTime -> ReaderT Config IO BundleFeed
-createBundleFeed products startTime = do
+createBundleFeed :: [Product] -> ReaderT Config IO BundleFeed
+createBundleFeed products = do
   gdaxFeed <- newGdaxFeed products
   logDebug "Created GDAX feed."
   accountFeed <- newAccountFeed
@@ -48,9 +47,9 @@ createBundleFeed products startTime = do
         (forM products $ \product -> do
            feed <- newSingleFeedFn gdaxFeed product
            return (product, feed))
-  seriesFeeds <- createMultiFeeds $ newTimeSeriesFeed startTime
-  bookFeeds <- createMultiFeeds $ newOrderBookFeed
-  tradesFeeds <- createMultiFeeds $ newTradesFeed
+  seriesFeeds <- createMultiFeeds newTimeSeriesFeed
+  bookFeeds <- createMultiFeeds newOrderBookFeed
+  tradesFeeds <- createMultiFeeds newTradesFeed
   logDebug "Created all auxiliary feeds."
   newBundleFeed accountFeed bookFeeds seriesFeeds tradesFeeds
 

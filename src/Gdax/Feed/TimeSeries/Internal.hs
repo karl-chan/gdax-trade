@@ -9,8 +9,6 @@ import           Gdax.Types.TimeSeries              (Stat (..), TimeSeries)
 import qualified Gdax.Types.TimeSeries.Util         as TS
 import           Gdax.Util.Config
 import           Gdax.Util.Feed
-import           Gdax.Util.Queue
-import           Gdax.Util.Throttle
 import           Gdax.Util.Throttle.Api
 import           Gdax.Util.Time
 
@@ -23,44 +21,39 @@ import           Coinbase.Exchange.Types.Socket     (ExchangeMessage (Match),
                                                      msgSide, msgSize, msgTime)
 
 import           Control.Concurrent                 (forkIO)
-import           Control.Concurrent.MVar            (MVar, newMVar, readMVar,
-                                                     swapMVar)
-import           Control.Monad                      (void)
 import           Control.Monad.Reader
 import           Data.List                          (insert)
-import           Data.Maybe                         (maybe)
 import           Data.Time.Clock                    (addUTCTime, diffUTCTime,
                                                      getCurrentTime)
 import           Gdax.Util.Logger
 import           Prelude                            hiding (product)
 
 streamTimeSeries ::
-     StartTime
-  -> Product
-  -> GdaxFeedListener
-  -> ReaderT Config IO TimeSeriesFeed
-streamTimeSeries startTime product gdaxFeedListener = do
+     Product -> GdaxFeedListener -> ReaderT Config IO TimeSeriesFeed
+streamTimeSeries product gdaxFeedListener = do
   config <- ask
-  granularity <- reader $ granularity . apiConf
+  initialPeriod <- reader $ initialPeriod . timeSeriesConf
   liftIO $ do
     tsFeed <- newFeed
     forkIO $ do
       now <- getCurrentTime
-      initialTS <- runReaderT (initSeries startTime now product) config
+      let startTime = addUTCTime (-initialPeriod) now
+      initialSeries <-
+        runReaderT (initialiseTimeSeries startTime now product) config
       logDebug $ "Initialised time series."
       let loop series = do
             writeFeed tsFeed series
-            stat <- newStat granularity gdaxFeedListener
-            let newSeries = maybe series (\s -> TS.insert s series) stat
-            logDebug $
-              "New stat: " ++
-              show stat ++ ". New time series range: " ++ showRange newSeries
+            newSeries <-
+              runReaderT
+                (incrementTimeSeries series product gdaxFeedListener)
+                config
             loop newSeries
-      loop initialTS
+      loop initialSeries
     return tsFeed
 
-initSeries :: StartTime -> EndTime -> Product -> ReaderT Config IO TimeSeries
-initSeries startTime endTime product = do
+initialiseTimeSeries ::
+     StartTime -> EndTime -> Product -> ReaderT Config IO TimeSeries
+initialiseTimeSeries startTime endTime product = do
   granularity <- reader $ granularity . apiConf
   dataLimit <- reader $ dataLimit . throttleConf . apiConf
   let intervalLength = granularity * fromIntegral dataLimit
@@ -79,39 +72,57 @@ initSeries startTime endTime product = do
                (Just $ floor granularity))
           intervals
   candlesChunks <- throttleApi requests
-  let candles = concat candlesChunks
-      series = fromCandles candles granularity product
-  logDebug $ "All REST time series received: " ++ showRange series
+  let candles = concat $ candlesChunks
+      series = TS.dropBefore startTime $ fromCandles candles granularity product
+  logDebug $ "All REST time series received: " ++ TS.showRange series
   return series
 
-newStat :: Granularity -> GdaxFeedListener -> IO (Maybe Stat)
-newStat granularity gdaxFeedListener = do
-  countdownTimer <- newMVar False :: IO (MVar Bool)
-  forkIO $ do
-    sleep granularity
-    void $ swapMVar countdownTimer True
-  let loop queue = do
-        timeIsUp <- readMVar countdownTimer
-        exchangeMsg <- readFeed gdaxFeedListener
-        let newQueue = enqueue queue exchangeMsg
-        if timeIsUp
-          then return $ queueToStat queue
-          else loop newQueue
-  loop newExchangeMsgQueue
-
-queueToStat :: ExchangeMsgQueue -> Maybe Stat
-queueToStat queue =
-  let matchQueue =
-        queueFilter
-          (\m ->
-             case m of
-               Match {..} -> True
-               _          -> False)
-          queue
-  in if queueNull matchQueue
-       then Nothing
-       else Just $
-            dequeue matchQueue updateStat $ (initialStat . queueHead) matchQueue
+incrementTimeSeries ::
+     TimeSeries -> Product -> GdaxFeedListener -> ReaderT Config IO TimeSeries
+incrementTimeSeries series product gdaxFeedListener = do
+  granularity <- reader $ granularity . apiConf
+  msg <- liftIO $ readFeed gdaxFeedListener
+  return $
+    case msg of
+      Match {..} ->
+        let lastStatTime = start . TS.last $ series
+            elapsed = diffUTCTime msgTime lastStatTime
+        in if elapsed >= granularity
+             then let elapsedMultiple = floor $ elapsed / granularity :: Int
+                      newStatTime =
+                        addUTCTime
+                          (realToFrac elapsedMultiple * granularity)
+                          lastStatTime
+                      series' =
+                        TS.updateLastStat
+                          (\stat -> stat {end = newStatTime})
+                          series
+                      newStat =
+                        Stat
+                        { start = newStatTime
+                        , end = msgTime
+                        , low = msgPrice
+                        , high = msgPrice
+                        , open = msgPrice
+                        , close = msgPrice
+                        , volume = msgSize
+                        , product = product
+                        }
+                  in TS.insert newStat series'
+             else TS.updateLastStat
+                    (\stat@Stat {..} ->
+                       stat
+                       { end = max end msgTime
+                       , low = min low msgPrice
+                       , high = max high msgPrice
+                       , close = msgPrice
+                       , volume = volume + msgSize
+                       })
+                    series
+      _ ->
+        TS.updateLastStat
+          (\stat@Stat {..} -> stat {end = max end $ msgTime msg})
+          series
 
 fromCandles :: [Candle] -> Granularity -> Product -> TimeSeries
 fromCandles candles granularity product =
@@ -131,39 +142,4 @@ fromCandles candles granularity product =
       , product = product
       }
     fromNeighbouringCandles candle@(Candle s _ _ _ _ _) (Candle e _ _ _ _ _) =
-      fromCandle candle $ diffUTCTime e s
-
-initialStat :: ExchangeMessage -> Stat
-initialStat Match {..} =
-  Stat
-  { start = msgTime
-  , end = msgTime
-  , low = msgPrice
-  , high = msgPrice
-  , open = msgPrice
-  , close = msgPrice
-  , volume = 0
-  , product = fromId msgProductId
-  }
-initialStat msg =
-  error $ "initialStat only works for Match messages, not for: " ++ show msg
-
-updateStat :: Stat -> ExchangeMessage -> Stat
-updateStat stat@Stat {..} Match {..} =
-  stat
-  { start = min start msgTime
-  , end = max end msgTime
-  , low = min low msgPrice
-  , high = max high msgPrice
-  , open = open
-  , close = msgPrice
-  , volume = volume + msgSize
-  }
-updateStat _ msg =
-  error $ "updateStat only works for Match messages, not for: " ++ show msg
-
-showRange :: TimeSeries -> String
-showRange = uncurry showRangeTime . TS.range
-
-showRangeTime :: StartTime -> EndTime -> String
-showRangeTime start end = show start ++ " - " ++ show end
+      fromCandle candle $ abs $ diffUTCTime s e

@@ -28,7 +28,7 @@ getDirection :: Reader ProductBundle Direction
 getDirection = do
   ProductBundle {..} <- ask
   let StrategyConf {..} = strategyConfig
-      lastHourSeries = TS.lookback series hour
+      lastHourSeries = TS.lookback hour series
       openPrice = TS.open lastHourSeries
       closePrice = TS.close lastHourSeries
       direction =

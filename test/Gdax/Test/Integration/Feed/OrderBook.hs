@@ -4,7 +4,6 @@ module Gdax.Test.Integration.Feed.OrderBook where
 
 import           Gdax.Test.Data
 
-import           Gdax.Feed.Gdax
 import           Gdax.Feed.OrderBook
 import           Gdax.Types.OrderBook
 import           Gdax.Types.OrderBook.Util
@@ -22,22 +21,21 @@ import           Prelude                   hiding (product)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
-syncDelay :: NominalDiffTime
-syncDelay = 30 -- 30 seconds
-
 tests :: TestTree
 tests = testGroup "Order book" $ [testSync]
 
 testSync :: TestTree
 testSync = do
-  testCase "should match and sync with GDAX implementation" $ do
-    gdaxFeed <- runReaderT (newGdaxFeed [testProduct]) testConfig
-    bookFeed <- runReaderT (newOrderBookFeed gdaxFeed testProduct) testConfig
+  let syncDelay = 5 :: NominalDiffTime -- 5 seconds
+  testCase "should sync with GDAX implementation (takes 5 seconds)" $ do
+    bookFeed <-
+      runReaderT (newOrderBookFeed testGdaxFeed testProduct) testConfig
     bookFeedListener <- newFeedListener bookFeed
     restBookRef <- newEmptyMVar
     forkIO $ do
       sleep syncDelay
-      runReaderT (restOrderBook testProduct) testConfig >>= putMVar restBookRef
+      restBook <- runReaderT (restOrderBook testProduct) testConfig
+      putMVar restBookRef restBook
     let loop books = do
           book <- readFeed bookFeedListener
           maybeRestBook <- tryReadMVar restBookRef

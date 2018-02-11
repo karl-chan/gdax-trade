@@ -9,7 +9,7 @@ import           Gdax.Types.Bundle
 import           Gdax.Types.OrderBook
 import           Gdax.Types.OrderBook.Util
 import           Gdax.Types.TimeSeries
-import           Gdax.Types.TimeSeries.Util   as TS hiding (product)
+import qualified Gdax.Types.TimeSeries.Util   as TS hiding (product)
 import           Gdax.Util.Config
 import           Gdax.Util.Time
 
@@ -55,8 +55,8 @@ supportResistance = do
 
 identifyTurningPoints :: TimeSeries -> Set Price
 identifyTurningPoints series =
-  let hourlySeries = downscale series hour
-      hourlyStats = seriesToStats hourlySeries
+  let hourlySeries = TS.downscale series hour
+      hourlyStats = TS.seriesToStats hourlySeries
       points = identifyTurningPointsFromStats hourlyStats
   in Set.fromList points
 
