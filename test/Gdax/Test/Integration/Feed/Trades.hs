@@ -16,23 +16,40 @@ import           Test.Tasty.HUnit
 
 tests :: TestTree
 tests = do
-  testGroup "Trades" [test]
+  testCase "Trades" test
 
-test :: TestTree
-test =
-  testCase "should span across rolling window" $ do
-    now <- getCurrentTime
-    tradesFeed <- runReaderT (newTradesFeed testGdaxFeed testProduct) testConfig
-    tradesFeedListener <- newFeedListener tradesFeed
-    initialTrades <- readFeed tradesFeedListener
-    let (s, e) = Trades.range initialTrades
-        margin = 10 * minute
-        window = rollingWindow . tradesConf $ testConfig
-        startOfWindow = addUTCTime (-window) now
-    assertBool
-      ("Start time: " ++
-       show s ++ " should be close to start of window: " ++ show startOfWindow)
-      (diffUTCTime s startOfWindow < margin)
-    assertBool
-      ("End time: " ++ show e ++ " should be close to now: " ++ show now)
-      (diffUTCTime now e < margin)
+test :: Assertion
+test = do
+  now <- getCurrentTime
+  tradesFeed <- runReaderT (newTradesFeed testGdaxFeed testProduct) testConfig
+  tradesFeedListener <- newFeedListener tradesFeed
+  initialTrades <- readFeed tradesFeedListener
+  let (initialStart, initialEnd) = Trades.range initialTrades
+      loop = do
+        trades <- readFeed tradesFeedListener
+        if trades /= initialTrades
+          then do
+            let (start, end) = Trades.range initialTrades
+                margin = 5 * minute
+                window = rollingWindow . tradesConf $ testConfig
+                startOfWindow = addUTCTime (-window) now
+            assertBool
+              ("Start time: " ++
+               show start ++
+               " should be close to start of window: " ++ show startOfWindow)
+              (diffUTCTime start startOfWindow < margin)
+            assertBool
+              ("End time: " ++
+               show end ++ " should be close to now: " ++ show now)
+              (diffUTCTime now end < margin)
+            assertEqual
+              "Start time should be equal to initial start time"
+              initialStart
+              start
+            assertBool
+              ("End time: " ++
+               show end ++
+               " should be greater than initial end time: " ++ show initialEnd)
+              (end > initialEnd)
+          else loop
+  loop
