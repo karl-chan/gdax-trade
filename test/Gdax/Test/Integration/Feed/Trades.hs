@@ -29,7 +29,7 @@ test = do
         trades <- readFeed tradesFeedListener
         if trades /= initialTrades
           then do
-            let (start, end) = Trades.range initialTrades
+            let (start, end) = Trades.range trades
                 margin = 5 * minute
                 window = rollingWindow . tradesConf $ testConfig
                 startOfWindow = addUTCTime (-window) now
@@ -42,10 +42,12 @@ test = do
               ("End time: " ++
                show end ++ " should be close to now: " ++ show now)
               (diffUTCTime now end < margin)
-            assertEqual
-              "Start time should be equal to initial start time"
-              initialStart
-              start
+            assertBool
+              ("Start time: " ++
+               show start ++
+               " should be greater than or equal to initial start time: " ++
+               show initialStart)
+              (start >= initialStart)
             assertBool
               ("End time: " ++
                show end ++

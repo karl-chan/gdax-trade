@@ -9,6 +9,7 @@ import           Gdax.Types.OrderBook
 import           Gdax.Types.OrderBook.Util
 import           Gdax.Util.Feed
 import           Gdax.Util.Throttle
+import           Gdax.Util.Time
 
 import           Control.Concurrent        (forkIO)
 import           Control.Concurrent.MVar
@@ -16,37 +17,34 @@ import           Control.Monad.Reader
 import qualified Data.HashMap.Strict       as Map
 import           Data.List                 hiding (product)
 import           Data.Maybe
-import           Data.Time.Clock
 import           Prelude                   hiding (product)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
 tests :: TestTree
-tests = testGroup "Order book" $ [test]
+tests = testCase "Order book" $ test
 
-test :: TestTree
+test :: Assertion
 test = do
-  let syncDelay = 5 :: NominalDiffTime -- 5 seconds
-  testCase "should sync with GDAX implementation (takes 5 seconds)" $ do
-    bookFeed <-
-      runReaderT (newOrderBookFeed testGdaxFeed testProduct) testConfig
-    bookFeedListener <- newFeedListener bookFeed
-    restBookRef <- newEmptyMVar
-    forkIO $ do
-      sleep syncDelay
-      restBook <- runReaderT (restOrderBook testProduct) testConfig
-      putMVar restBookRef restBook
-    let loop books = do
-          book <- readFeed bookFeedListener
-          maybeRestBook <- tryReadMVar restBookRef
-          case maybeRestBook of
-            Nothing -> loop (book : books)
-            Just restBook -> do
-              let testBook =
-                    fromJust $
-                    find (\b -> bookSequence b == bookSequence restBook) books
-              assertBool (diffBooks testBook restBook) (testBook == restBook)
-    loop []
+  let syncDelay = 30 * second
+  bookFeed <- runReaderT (newOrderBookFeed testGdaxFeed testProduct) testConfig
+  bookFeedListener <- newFeedListener bookFeed
+  restBookRef <- newEmptyMVar
+  forkIO $ do
+    sleep syncDelay
+    restBook <- runReaderT (restOrderBook testProduct) testConfig
+    putMVar restBookRef restBook
+  let loop books = do
+        book <- readFeed bookFeedListener
+        maybeRestBook <- tryReadMVar restBookRef
+        case maybeRestBook of
+          Nothing -> loop (book : books)
+          Just restBook -> do
+            let testBook =
+                  fromJust $
+                  find (\b -> bookSequence b == bookSequence restBook) books
+            assertBool (diffBooks testBook restBook) (testBook == restBook)
+  loop []
 
 diffBooks :: OrderBook -> OrderBook -> String
 diffBooks book1 book2 =

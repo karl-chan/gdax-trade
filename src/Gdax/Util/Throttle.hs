@@ -9,8 +9,8 @@ import           Control.Exception
 import           Data.List          (splitAt)
 import           Data.Time.Clock
 
-throttle :: Int -> NominalDiffTime -> Maybe NominalDiffTime -> [IO a] -> IO [a]
-throttle concurrency interval maybeRetryAfter tasks =
+throttle :: [IO a] -> Int -> NominalDiffTime -> Maybe NominalDiffTime -> IO [a]
+throttle tasks concurrency interval maybeRetryAfter =
   let loop [] results = return results
       loop remainingTasks acc = do
         let (immediateTasks, queueTasks) = splitAt concurrency remainingTasks
@@ -24,8 +24,10 @@ throttle concurrency interval maybeRetryAfter tasks =
 
 retry :: NominalDiffTime -> IO a -> IO a
 retry after task =
-  catch task $ \(_ :: IOException) -> do
-    logDebug $ "Task failed... retrying after " ++ show after ++ "s."
+  catch task $ \(e :: SomeException) -> do
+    logDebug $
+      "Task failed because of: " ++
+      show e ++ ". Retrying after: " ++ show after ++ "."
     sleep after
     retry after task
 

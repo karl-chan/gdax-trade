@@ -53,7 +53,9 @@ initialiseTrades startTime product = do
   allRawTrades <-
     throttlePaginatedApi (getTradesPaginated productId) terminateCondition
   let rawTrades = concat allRawTrades
-  let trades = sortBy (comparing tradeId) $ map (fromRawTrade product) rawTrades
+  let trades =
+        Trades.dropBefore startTime $
+        sortBy (comparing tradeId) $ map (fromRawTrade product) rawTrades
   logDebug $ "Received all REST trades: " ++ Trades.showRange trades
   return trades
 

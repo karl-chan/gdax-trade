@@ -43,10 +43,8 @@ streamTimeSeries product gdaxFeedListener = do
       logDebug $ "Initialised time series."
       let loop series = do
             writeFeed tsFeed series
-            newSeries <-
-              runReaderT
-                (incrementTimeSeries series product gdaxFeedListener)
-                config
+            exchangeMsg <- readFeed gdaxFeedListener
+            newSeries <- runReaderT (updateTimeSeries series exchangeMsg) config
             loop newSeries
       loop initialSeries
     return tsFeed
@@ -72,68 +70,67 @@ initialiseTimeSeries startTime endTime product = do
                (Just $ floor granularity))
           intervals
   candlesChunks <- throttleApi requests
+  now <- liftIO getCurrentTime
   let candles = concat $ candlesChunks
-      series = TS.dropBefore startTime $ fromCandles candles granularity product
+      series = TS.dropBefore startTime $ fromCandles candles now product
   logDebug $ "All REST time series received: " ++ TS.showRange series
   return series
 
-incrementTimeSeries ::
-     TimeSeries -> Product -> GdaxFeedListener -> ReaderT Config IO TimeSeries
-incrementTimeSeries series product gdaxFeedListener = do
+updateTimeSeries ::
+     TimeSeries -> ExchangeMessage -> ReaderT Config IO TimeSeries
+updateTimeSeries series Match {..} = do
   granularity <- reader $ granularity . apiConf
-  msg <- liftIO $ readFeed gdaxFeedListener
+  let lastStatTime = start . TS.last $ series
+      elapsed = diffUTCTime msgTime lastStatTime
   return $
-    case msg of
-      Match {..} ->
-        let lastStatTime = start . TS.last $ series
-            elapsed = diffUTCTime msgTime lastStatTime
-        in if elapsed >= granularity
-             then let elapsedMultiple = floor $ elapsed / granularity :: Int
-                      newStatTime =
-                        addUTCTime
-                          (realToFrac elapsedMultiple * granularity)
-                          lastStatTime
-                      series' =
-                        TS.updateLastStat
-                          (\stat -> stat {end = newStatTime})
-                          series
-                      newStat =
-                        Stat
-                        { start = newStatTime
-                        , end = msgTime
-                        , low = msgPrice
-                        , high = msgPrice
-                        , open = msgPrice
-                        , close = msgPrice
-                        , volume = msgSize
-                        , product = product
-                        }
-                  in TS.insert newStat series'
-             else TS.updateLastStat
-                    (\stat@Stat {..} ->
-                       stat
-                       { end = max end msgTime
-                       , low = min low msgPrice
-                       , high = max high msgPrice
-                       , close = msgPrice
-                       , volume = volume + msgSize
-                       })
-                    series
-      _ ->
-        TS.updateLastStat
-          (\stat@Stat {..} -> stat {end = max end $ msgTime msg})
-          series
+    if elapsed >= granularity
+      then let elapsedMultiple = floor $ elapsed / granularity :: Int
+               newBoundaryTime =
+                 addUTCTime
+                   (realToFrac elapsedMultiple * granularity)
+                   lastStatTime
+               series' =
+                 TS.updateLastStat
+                   (\stat -> stat {end = newBoundaryTime})
+                   series
+               newStat =
+                 Stat
+                 { start = newBoundaryTime
+                 , end = msgTime
+                 , low = msgPrice
+                 , high = msgPrice
+                 , open = msgPrice
+                 , close = msgPrice
+                 , volume = msgSize
+                 , product = TS.product series
+                 }
+           in TS.insert newStat series'
+      else TS.updateLastStat
+             (\stat@Stat {..} ->
+                stat
+                { end = max end msgTime
+                , low = min low msgPrice
+                , high = max high msgPrice
+                , close = msgPrice
+                , volume = volume + msgSize
+                })
+             series
+updateTimeSeries series msg =
+  return $
+  TS.updateLastStat
+    (\stat@Stat {..} -> stat {end = max end $ msgTime msg})
+    series
 
-fromCandles :: [Candle] -> Granularity -> Product -> TimeSeries
-fromCandles candles granularity product =
+fromCandles :: [Candle] -> EndTime -> Product -> TimeSeries
+fromCandles candles endTime product =
   TS.statsToSeries $ frontSeries ++ [lastSeries]
   where
     frontSeries = zipWith fromNeighbouringCandles candles $ tail candles
-    lastSeries = fromCandle (last candles) granularity
-    fromCandle (Candle s l h o c v) duration =
+    lastSeries = fromCandle (last candles) endTime
+    fromCandle (Candle s l h o c v) e =
       Stat
       { start = s
-      , end = addUTCTime duration s
+      , end = e
       , low = Price $ realToFrac l
       , high = Price $ realToFrac h
       , open = Price $ realToFrac o
@@ -141,5 +138,5 @@ fromCandles candles granularity product =
       , volume = Size $ realToFrac v
       , product = product
       }
-    fromNeighbouringCandles candle@(Candle s _ _ _ _ _) (Candle e _ _ _ _ _) =
-      fromCandle candle $ abs $ diffUTCTime s e
+    fromNeighbouringCandles candle@(Candle s1 _ _ _ _ _) (Candle s2 _ _ _ _ _) =
+      fromCandle candle $ max s1 s2

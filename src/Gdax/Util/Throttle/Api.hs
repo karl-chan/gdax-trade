@@ -15,7 +15,7 @@ throttleApi requests = do
   conf <- reader exchangeConf
   ThrottleConf {..} <- reader $ throttleConf . apiConf
   let tasks = map (execExchange conf) requests
-  liftIO $ throttle parallelism interval (Just retryGap) tasks
+  liftIO $ throttle tasks parallelism interval (Just retryGap)
 
 throttlePaginatedApi ::
      (Pagination -> Exchange (a, Pagination))
@@ -25,7 +25,8 @@ throttlePaginatedApi request terminatingCondition = do
   conf <- reader exchangeConf
   ThrottleConf {..} <- reader $ throttleConf . apiConf
   let loop pagination acc = do
-        (result, paginationResult) <- execExchange conf $ request pagination
+        (result, paginationResult) <-
+          retry retryGap $ execExchange conf $ request pagination
         if terminatingCondition result
           then return (result : acc)
           else do
