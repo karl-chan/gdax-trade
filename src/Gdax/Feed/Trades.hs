@@ -13,7 +13,7 @@ import           Gdax.Util.Feed
 import           Control.Monad.Reader
 import           Prelude                   hiding (product)
 
-newTradesFeed :: GdaxFeed -> Product -> ReaderT Config IO TradesFeed
-newTradesFeed gdaxFeed product = do
+newTradesFeed :: Product -> GdaxFeed -> ReaderT Config IO TradesFeed
+newTradesFeed product gdaxFeed = do
   gdaxFeedListener <- liftIO . newFeedListener $ gdaxFeed
   streamTrades product gdaxFeedListener

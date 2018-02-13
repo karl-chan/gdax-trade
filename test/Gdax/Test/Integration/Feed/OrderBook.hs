@@ -27,7 +27,7 @@ tests = testCase "Order book" $ test
 test :: Assertion
 test = do
   let syncDelay = 30 * second
-  bookFeed <- runReaderT (newOrderBookFeed testGdaxFeed testProduct) testConfig
+  bookFeed <- runReaderT (newOrderBookFeed testProduct testGdaxFeed) testConfig
   bookFeedListener <- newFeedListener bookFeed
   restBookRef <- newEmptyMVar
   forkIO $ do

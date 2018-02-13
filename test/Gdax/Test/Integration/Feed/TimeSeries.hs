@@ -20,7 +20,7 @@ tests = testCase "Time Series" test
 test :: Assertion
 test = do
   now <- getCurrentTime
-  tsFeed <- runReaderT (newTimeSeriesFeed testGdaxFeed testProduct) testConfig
+  tsFeed <- runReaderT (newTimeSeriesFeed testProduct testGdaxFeed) testConfig
   tsFeedListener <- newFeedListener tsFeed
   initialSeries <- readFeed tsFeedListener
   let (initialStart, initialEnd) = TS.range initialSeries

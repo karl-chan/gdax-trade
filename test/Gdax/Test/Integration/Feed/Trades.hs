@@ -21,7 +21,7 @@ tests = do
 test :: Assertion
 test = do
   now <- getCurrentTime
-  tradesFeed <- runReaderT (newTradesFeed testGdaxFeed testProduct) testConfig
+  tradesFeed <- runReaderT (newTradesFeed testProduct testGdaxFeed) testConfig
   tradesFeedListener <- newFeedListener tradesFeed
   initialTrades <- readFeed tradesFeedListener
   let (initialStart, initialEnd) = Trades.range initialTrades
