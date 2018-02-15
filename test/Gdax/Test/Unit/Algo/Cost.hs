@@ -73,7 +73,7 @@ testMarketSpreadCost =
               Market
               {side = side, product = testProduct, amount = AmountSize size}
         assertRoughlyEqual
-          ("Market spread cost should be %s instead of %s for " ++
+          ("Market spread cost should be %f instead of %f for " ++
            show (realToFrac size :: Double) ++ " coins")
           cost
           (marketSpreadCost action testOrderBook)
@@ -95,7 +95,7 @@ testActualSize =
               Sell -> testBookBids
       forM_ expectations $ \(coin, fiat) ->
         assertRoughlyEqual
-          ("%s coins should be required instead of %s to " ++
+          ("%f coins should be required instead of %f to " ++
            show side ++
            " " ++
            show (realToFrac fiat :: Double) ++ " fiat from order book items")
@@ -119,7 +119,7 @@ testActualPrice =
               Sell -> testBookBids
       forM_ expectations $ \(coin, fiat) ->
         assertRoughlyEqual
-          ("%s fiat should be required instead of %s to " ++
+          ("%f fiat should be required instead of %f to " ++
            show side ++
            " " ++
            show (realToFrac coin :: Double) ++ " coins from order book items")

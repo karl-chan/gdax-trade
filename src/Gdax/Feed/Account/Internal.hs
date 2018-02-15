@@ -1,12 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Gdax.Feed.MyAccount.Internal where
+module Gdax.Feed.Account.Internal where
 
 import           Gdax.Account.Balance
 import           Gdax.Account.MyAccount
 import           Gdax.Account.MyOrder
 import           Gdax.Algo.Action
-import           Gdax.Feed.MyAccount.Types
+import           Gdax.Feed.Account.Types
 import           Gdax.Types.Amount
 import           Gdax.Types.Currency             (Currency)
 import qualified Gdax.Types.Currency             as C

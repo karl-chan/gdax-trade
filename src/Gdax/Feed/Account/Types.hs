@@ -1,4 +1,4 @@
-module Gdax.Feed.MyAccount.Types where
+module Gdax.Feed.Account.Types where
 
 import           Gdax.Account.MyAccount
 import           Gdax.Util.Feed

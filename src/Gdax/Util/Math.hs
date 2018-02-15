@@ -26,9 +26,13 @@ percentileBy fn xs pc =
 
 -- For rough comparison due to rounding dp requirement by GDAX
 roughlyEqual :: Real a => a -> a -> Bool
-roughlyEqual n1 n2 =
-  let tolerance = 1e-6 :: Double
-  in abs (realToFrac n1 - realToFrac n2) < tolerance
+roughlyEqual =
+  let tolerance = 1e-6
+  in roughlyEqualWithTolerance tolerance
+
+roughlyEqualWithTolerance :: (Real a) => Double -> a -> a -> Bool
+roughlyEqualWithTolerance tolerance n1 n2 =
+  abs (realToFrac n1 - realToFrac n2) < tolerance
 
 roughlyEqualAmount :: Amount -> Amount -> Bool
 roughlyEqualAmount a1 a2

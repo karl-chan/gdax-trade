@@ -47,7 +47,7 @@ data Config = Config
   , strategyConf        :: StrategyConf
   , feesConf            :: FeesConf
   , logConf             :: LogConf
-  }
+  } deriving (Eq, Show)
 
 getGlobalConfig :: IO Config
 getGlobalConfig = do

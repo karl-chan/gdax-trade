@@ -1,7 +1,7 @@
 module Gdax.Feed.Bundle.Internal where
 
+import           Gdax.Feed.Account.Types
 import           Gdax.Feed.Bundle.Types
-import           Gdax.Feed.MyAccount.Types
 import           Gdax.Feed.OrderBook.Types
 import           Gdax.Feed.TimeSeries.Types
 import           Gdax.Feed.Trades.Types

@@ -14,7 +14,7 @@ import           Gdax.Util.Time
 import           Control.Concurrent        (forkIO)
 import           Control.Concurrent.MVar
 import           Control.Monad.Reader
-import qualified Data.HashMap.Strict       as Map
+import qualified Data.HashMap.Strict       as HM
 import           Data.List                 hiding (product)
 import           Data.Maybe
 import           Prelude                   hiding (product)
@@ -26,12 +26,12 @@ tests = testCase "Order book" $ test
 
 test :: Assertion
 test = do
-  let syncDelay = 30 * second
+  let compareAgainAfter = 30 * second
   bookFeed <- runReaderT (newOrderBookFeed testProduct testGdaxFeed) testConfig
   bookFeedListener <- newFeedListener bookFeed
   restBookRef <- newEmptyMVar
   forkIO $ do
-    sleep syncDelay
+    sleep compareAgainAfter
     restBook <- runReaderT (restOrderBook testProduct) testConfig
     putMVar restBookRef restBook
   let loop books = do
@@ -61,4 +61,4 @@ diffBooks book1 book2 =
   "\nAsks diff (2-1): " ++ diffItems bookAsks book2 book1
   where
     diffItems prop items1 items2 =
-      show $ (Map.elems $ prop items1) \\ (Map.elems $ prop items2)
+      show $ (HM.elems $ prop items1) \\ (HM.elems $ prop items2)

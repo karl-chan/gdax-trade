@@ -4,4 +4,4 @@ import           Data.Time.Clock
 
 data TimeSeriesConf = TimeSeriesConf
   { initialPeriod :: NominalDiffTime
-  }
+  } deriving (Eq, Show)

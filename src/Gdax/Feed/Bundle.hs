@@ -1,9 +1,9 @@
 module Gdax.Feed.Bundle where
 
+import           Gdax.Feed.Account
 import           Gdax.Feed.Bundle.Internal
 import           Gdax.Feed.Bundle.Types
 import           Gdax.Feed.Gdax
-import           Gdax.Feed.MyAccount
 import           Gdax.Feed.OrderBook
 import           Gdax.Feed.TimeSeries
 import           Gdax.Feed.Trades

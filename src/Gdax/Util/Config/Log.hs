@@ -1,12 +1,12 @@
 module Gdax.Util.Config.Log where
 
-import Data.Char
+import           Data.Char
 
 data LogConf = LogConf
-  { logFile :: !(Maybe FilePath)
+  { logFile      :: !(Maybe FilePath)
   , enableStderr :: !Bool
-  , logLevel :: LogLevel
-  }
+  , logLevel     :: LogLevel
+  } deriving (Eq, Show)
 
 data LogLevel
   = LogTrace
@@ -22,8 +22,8 @@ parseLogLevel s =
   case map toLower s of
     "trace" -> LogTrace
     "debug" -> LogDebug
-    "info" -> LogInfo
-    "note" -> LogNote
-    "warn" -> LogWarn
+    "info"  -> LogInfo
+    "note"  -> LogNote
+    "warn"  -> LogWarn
     "error" -> LogError
-    _ -> LogDebug
+    _       -> LogDebug

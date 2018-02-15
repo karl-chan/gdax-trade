@@ -8,4 +8,4 @@ data ApiConf = ApiConf
   , granularity   :: Granularity
   , mode          :: String
   , throttleConf  :: ThrottleConf
-  }
+  } deriving (Eq, Show)

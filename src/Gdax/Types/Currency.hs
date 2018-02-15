@@ -22,7 +22,7 @@ data Currency
   | BCH
   | ETH
   | LTC
-  deriving (Eq, Show, Read, Ord, Generic, Hashable, Data, NFData)
+  deriving (Eq, Show, Enum, Bounded, Read, Ord, Generic, Hashable, Data, NFData)
 
 isFiat :: Currency -> Bool
 isFiat c = c `elem` [USD, EUR]
