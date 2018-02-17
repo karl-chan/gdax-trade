@@ -3,10 +3,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-module Gdax.Web.Handlers.Proxy where
+module Gdax.Web.Handlers.Rest where
 
 import           Gdax.Util.Config
 import           Gdax.Util.Logger
+import           Gdax.Web.Handlers.Error
 
 import           Coinbase.Exchange.Rest
 import           Coinbase.Exchange.Types
@@ -29,30 +30,31 @@ import           Network.Wai.Parse
 
 type Payload = Text
 
-data ProxyResponse
-  = Err { err :: Text }
-  | Ok { before :: Maybe Text
-       , after  :: Maybe Text
-       , body   :: Text }
-  deriving (Generic, ToJSON)
+data RestResponse = Ok
+  { before :: Maybe Text
+  , after  :: Maybe Text
+  , body   :: Text
+  } deriving (Generic, ToJSON)
 
-proxy :: Config -> Application
-proxy Config {..} req respond = do
+restHandler :: Config -> Application
+restHandler Config {..} req respond = do
   (params, _) <-
     parseRequestBodyEx defaultParseRequestBodyOptions lbsBackEnd req
   let (method, endpoint, maybePayload) = decodeParams params
   res <- gdaxRequest exchangeConf method endpoint maybePayload
-  respond $
-    responseLBS status200 [(hContentType, "application/json")] $
-    encode $
-    case res of
-      Left err -> Err $ cs . show $ err
-      Right (headers, body) ->
-        Ok
-        { before = cs <$> lookup "CB-BEFORE" headers
-        , after = cs <$> lookup "CB-AFTER" headers
-        , body = cs body
-        }
+  case res of
+    Left err ->
+      let msg = cs . show $ err
+      in errorHandler msg req respond
+    Right (headers, body) ->
+      respond $
+      responseLBS status200 [(hContentType, "application/json")] $
+      encode $
+      Ok
+      { before = cs <$> lookup "CB-BEFORE" headers
+      , after = cs <$> lookup "CB-AFTER" headers
+      , body = cs body
+      }
 
 gdaxRequest ::
      ExchangeConf

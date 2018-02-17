@@ -21,8 +21,8 @@ data StreamResponse = Ok
   , endpoint :: Endpoint
   } deriving (Generic, ToJSON)
 
-stream :: Config -> Application
-stream Config {..} _ respond = do
+streamHandler :: Config -> Application
+streamHandler Config {..} _ respond = do
   auth <- mkAuth exchangeConf
   respond $
     responseLBS status200 [(hContentType, "application/json")] $
