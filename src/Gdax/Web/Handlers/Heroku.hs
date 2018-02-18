@@ -13,6 +13,7 @@ data HerokuAction
   = Start
   | Stop
   | Restart
+  deriving (Eq, Enum, Ord, Bounded)
 
 herokuHandler :: HerokuAction -> Application
 herokuHandler _ _ respond = do

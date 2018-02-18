@@ -6,6 +6,7 @@ module Gdax.Web.Routes where
 import           Gdax.Util.Config
 import           Gdax.Web.Handlers.Heroku
 import           Gdax.Web.Handlers.Rest
+import           Gdax.Web.Handlers.StaticData
 import           Gdax.Web.Handlers.Stream
 
 import           Network.Wai
@@ -14,6 +15,12 @@ import           Network.Wai.Application.Static
 routes :: Config -> Application
 routes conf req respond = do
   case (requestMethod req, pathInfo req) of
+    ("GET", ["api", "static-data", "channels"]) ->
+      staticDataHandler Channel req respond
+    ("GET", ["api", "static-data", "products"]) ->
+      staticDataHandler Product req respond
+    ("GET", ["api", "static-data", "rest-methods"]) ->
+      staticDataHandler RestMethod req respond
     ("POST", ["api", "rest"]) -> restHandler conf req respond
     ("POST", ["api", "stream"]) -> streamHandler conf req respond
     ("POST", ["heroku", "start"]) -> herokuHandler Start req respond

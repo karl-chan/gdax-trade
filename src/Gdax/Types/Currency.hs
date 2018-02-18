@@ -8,6 +8,7 @@ module Gdax.Types.Currency where
 import           Coinbase.Exchange.Types.Core
 
 import           Control.DeepSeq              (NFData)
+import           Data.Aeson                   (ToJSON)
 import           Data.Data                    (Data)
 import           Data.Hashable
 import           Data.String.Conversions
@@ -22,7 +23,18 @@ data Currency
   | BCH
   | ETH
   | LTC
-  deriving (Eq, Show, Enum, Bounded, Read, Ord, Generic, Hashable, Data, NFData)
+  deriving ( Eq
+           , Show
+           , Enum
+           , Bounded
+           , Read
+           , Ord
+           , Generic
+           , Hashable
+           , Data
+           , NFData
+           , ToJSON
+           )
 
 isFiat :: Currency -> Bool
 isFiat c = c `elem` [USD, EUR]
