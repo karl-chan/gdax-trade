@@ -56,6 +56,12 @@
         function DashboardController() {
             const self = this;
             riot.observable(self);
+            /* Available methods:
+                - restRequest
+                - streamRequest
+                - restResponse
+                - streamResponse
+            */
         }
 
         riot.mixin('DashboardController', {

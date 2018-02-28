@@ -1,8 +1,8 @@
 <dashboard-form-rest>
     <form id="dashboard-form-rest">
         <div class="row">
-            <virtual each={method, i in config.restMethods}>
-                <div class="col s4">
+            <virtual if={config} >
+                <div each={method, i in config.restMethods} class="col s4">
                     <input name="dashboard-form-rest-method" type="radio" id="dashboard-form-rest-method-{method}" class="with-gap" value={method}
                         checked={i===0}/>
                     <label for="dashboard-form-rest-method-{method}">{method}</label>
@@ -31,6 +31,7 @@
     <script>
         this.mixin('DashboardController'); // provides controller
         const self = this;
+        self.config = undefined;
 
         this.dashboardController.on('restRequest', (method, endpoint, payload, before, after) => {
             this.fireRestRequest(method, endpoint, payload, before, after);

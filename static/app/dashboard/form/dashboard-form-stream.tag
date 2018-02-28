@@ -5,11 +5,13 @@
         </div>
         <div class="row">
             <p class="grey-text">Select channels</p>
-            <div class="col s4" each={channel in config.channels}>
-                <input type="checkbox" id="dashboard-form-stream-channel-{channel}" value={channel} checked={selectedChannels.has(channel)}
-                    onchange={toggleChannel} class="filled-in" class="filled-in" />
-                <label for="dashboard-form-stream-channel-{channel}">{channel}</label>
-            </div>
+            <virtual if={config}>
+                <div class="col s4" each={channel in config.channels}>
+                    <input type="checkbox" id="dashboard-form-stream-channel-{channel}" value={channel} checked={selectedChannels.has(channel)}
+                        onchange={toggleChannel} class="filled-in" class="filled-in" />
+                    <label for="dashboard-form-stream-channel-{channel}">{channel}</label>
+                </div>
+            </virtual>
         </div>
         <div class="row">
             <button class="btn waves-effect waves-light teal darken-4 {disabled:!validateSubmit()}" type="submit" name="action">Go
@@ -21,6 +23,7 @@
     <script>
         this.mixin('DashboardController'); // provides controller
         const self = this;
+        self.config = undefined;
 
         this.dashboardController.on('streamRequest', (products, channels) => {
             this.fireStreamRequest(products, channels);
@@ -40,6 +43,10 @@
                 this.fireStreamRequest(products, channels);
                 e.preventDefault();
             });
+        });
+
+        RiotControl.on('config_update', (config) => {
+            self.config = config;
 
             // Need to manually register chips autocomplete for stream products
             $('#dashboard-form-stream-products').material_chip({
