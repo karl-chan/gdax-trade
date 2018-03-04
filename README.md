@@ -20,3 +20,6 @@
 
    To run the webapp:
     * `stack exec gdax-trade-server`
+
+## Heroku deployment
+1. `heroku buildpacks:set https://github.com/negativetwelve/heroku-buildpack-subdir`
