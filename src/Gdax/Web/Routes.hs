@@ -11,6 +11,7 @@ import           Gdax.Web.Handlers.Stream
 
 import           Network.Wai
 import           Network.Wai.Application.Static
+import           System.FilePath.Posix
 
 routes :: Config -> Application
 routes conf req respond = do
@@ -26,4 +27,7 @@ routes conf req respond = do
     ("POST", ["heroku", "start"]) -> herokuHandler Start req respond
     ("POST", ["heroku", "stop"]) -> herokuHandler Stop req respond
     ("POST", ["heroku", "restart"]) -> herokuHandler Restart req respond
-    _ -> staticApp (defaultFileServerSettings "static") req respond
+    _ -> staticApp (defaultFileServerSettings webappPath) req respond
+
+webappPath :: FilePath
+webappPath = "webapp" </> "dist"

@@ -1,43 +1,17 @@
 <template lang="pug">
-  v-container(grid-list-md)
-    v-layout(row wrap)
+  v-container.pa-0(fluid fill-height grid-list-xl)
+    v-layout(row)
       v-flex(xs6)
-        .display-2.secondary--text Try it out!
-        v-tabs(v-model="active" dark grow slider-color="accent" color="cyan")
-          v-tab(:key="'rest'" ripple) Rest
-          v-tab-item(:key="'rest'")
-            dashboard-rest-form
-          v-tab(:key="'stream'" ripple) Stream
-          v-tab-item(:key="'stream'")
-            dashboard-stream-form
-
-      v-flex(xs6)
-
+        DashboardForm
+      v-flex.grey.lighten-2(xs6)
+        DashboardResults
 </template>
 
 <script>
+import DashboardForm from '@/components/dashboard/panel/DashboardForm'
+import DashboardResults from '@/components/dashboard/panel/DashboardResults'
 export default {
   name: 'Dashboard',
-  data: () => ({
-    active: 'rest'
-  })
+  components: { DashboardForm, DashboardResults }
 }
 </script>
-
-<!-- Add "scoped" attribute to limit CSS to this component only -->
-<style lang="stylus" scoped>
-h1, h2 {
-  font-weight: normal;
-}
-ul {
-  list-style-type: none;
-  padding: 0;
-}
-li {
-  display: inline-block;
-  margin: 0 10px;
-}
-a {
-  color: #42b983;
-}
-</style>

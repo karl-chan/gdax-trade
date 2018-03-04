@@ -2,6 +2,7 @@
 .ideaHaskellLib/
 .idea/
 .vscode/
+node_modules/
 log.txt
 *.cabal
 npm-debug.log*

@@ -48,8 +48,8 @@ const mutations = {
   [SET_PRODUCTS] (state, { products }) {
     state.products = products
   },
-  [SET_REST_METHODS] (state, { methods }) {
-    state.restMethods = methods
+  [SET_REST_METHODS] (state, { restMethods }) {
+    state.restMethods = restMethods
   }
 }
 

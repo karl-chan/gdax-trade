@@ -3,7 +3,6 @@
 import Vue from 'vue'
 import Vuetify from 'vuetify'
 import App from '@/App'
-import components from '@/components'
 import router from '@/router'
 import store from '@/store'
 import colors from 'vuetify/es5/util/colors'
@@ -12,7 +11,7 @@ Vue.config.productionTip = false
 Vue.use(Vuetify, {
   theme: {
     primary: colors.orange.base,
-    secondary: colors.pink.lighten1,
+    secondary: colors.pink.lighten2,
     accent: colors.green.base
   }
 })
@@ -22,6 +21,6 @@ new Vue({
   el: '#app',
   router,
   store,
-  components: { App, ...components },
+  components: { App },
   template: '<App/>'
 })
