@@ -15,7 +15,7 @@ import           Coinbase.Exchange.Types
 import           Control.Exception         (SomeException, handle)
 import           Data.Aeson                (ToJSON, encode)
 import           Data.ByteString.Lazy      (ByteString)
-import           Data.Conduit              (($$+-))
+import           Data.Conduit              (connect)
 import           Data.Conduit.Binary       (sinkLbs)
 import qualified Data.Map                  as Map
 import           Data.String.Conversions
@@ -45,16 +45,16 @@ restHandler Config {..} req respond = do
   case res of
     Left err ->
       let msg = cs . show $ err
-      in errorHandler msg req respond
+       in errorHandler msg req respond
     Right (headers, body) ->
       respond $
       responseLBS status200 [(hContentType, "application/json")] $
       encode $
       Ok
-      { before = cs <$> lookup "CB-BEFORE" headers
-      , after = cs <$> lookup "CB-AFTER" headers
-      , body = cs body
-      }
+        { before = cs <$> lookup "CB-BEFORE" headers
+        , after = cs <$> lookup "CB-AFTER" headers
+        , body = cs body
+        }
 
 gdaxRequest ::
      ExchangeConf
@@ -68,7 +68,7 @@ gdaxRequest conf method endpoint maybePayload = do
     execExchange conf $ do
       res <- coinbaseRequest method True endpoint maybePayload
       let headers = responseHeaders res
-      body <- responseBody res $$+- sinkLbs
+      body <- responseBody res `connect` sinkLbs
       return $ Right (headers, body)
 
 decodeParams :: [Param] -> (Method, Endpoint, Maybe Payload)
@@ -81,6 +81,6 @@ decodeParams params =
         maybe (error "Missing endpoint in request body!") cs $
         Map.lookup "endpoint" paramMap
       maybePayload = cs <$> Map.lookup "payload" paramMap
-  in pureInfo
-       ("Decoded params: " ++ show paramMap)
-       (method, endpoint, maybePayload)
+   in pureInfo
+        ("Decoded params: " ++ show paramMap)
+        (method, endpoint, maybePayload)

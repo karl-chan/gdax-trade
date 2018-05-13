@@ -1,7 +1,5 @@
 flags: {}
 extra-package-dbs: []
-packages:
-- '.'
-- location: ./lib/gdax-haskell
-  extra-dep: true
-resolver: lts-10.5
+extra-deps:
+- lib/gdax-haskell
+resolver: lts-11.8
